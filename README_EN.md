@@ -94,7 +94,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/.../install.sh)
 |---|---|---|
 | `~/.claude/CLAUDE.md` | ✅ | Main AI instructions |
 | `~/.claude/settings.json` | ✅ filtered | `env` field (API tokens) removed automatically |
-| `~/.claude/skills/` | ✅ | All custom Skills |
+| `~/.claude/skills/` | ✅ | All custom Skills (mirror sync, including deletions) |
 | `~/.claude/plugins/blocklist.json` | ✅ | Blocked plugins list |
 | `~/.claude/plugins/known_marketplaces.json` | ✅ | Added marketplace sources |
 | `~/.claude/plugins/marketplaces/` | ❌ | Cache, re-downloadable |
@@ -105,8 +105,8 @@ bash <(curl -fsSL https://raw.githubusercontent.com/.../install.sh)
 | File | Synced | Notes |
 |---|---|---|
 | `~/.codex/AGENTS.md` | ✅ | Agent instructions |
-| `~/.codex/config.toml` | ✅ | MCP config, model params |
-| `~/.codex/skills/` | ✅ | All custom Skills |
+| `~/.codex/config.toml` | ✅ filtered | `[projects.*]` (local paths) and `env` (tokens) auto-filtered |
+| `~/.codex/skills/` | ✅ | All custom Skills (mirror sync, including deletions) |
 | `~/.codex/rules/` | ✅ | Rules files |
 | `~/.codex/memories/` | ✅ | AI memories |
 | `~/.codex/auth.json` | ❌ | Login tokens (per-machine) |
@@ -134,7 +134,9 @@ The local Git working directory is at `~/.cli-sync-repo/`.
 
 - **Private repository strongly recommended** (configs contain personal preferences and tool configurations)
 - The `env` field in `settings.json` (API tokens) is **automatically filtered out**
+- `config.toml`: `[projects.*]` sections (local paths) and `env` fields (potential tokens) are **automatically filtered out**
 - `auth.json` (login tokens) is **never synced** — you must log in on each machine
+- After pulling on a new machine, check MCP server command paths in `config.toml` for compatibility
 - Add additional sensitive paths to `.gitignore` in your sync repo as needed
 
 ---

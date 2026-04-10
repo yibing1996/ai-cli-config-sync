@@ -94,7 +94,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/.../install.sh)
 |---|---|---|
 | `~/.claude/CLAUDE.md` | ✅ | AI 主指令 |
 | `~/.claude/settings.json` | ✅ 过滤 | 去掉 `env`（API Token），其余保留 |
-| `~/.claude/skills/` | ✅ | 全部自定义 Skill |
+| `~/.claude/skills/` | ✅ | 全部自定义 Skill（镜像同步，含删除） |
 | `~/.claude/plugins/blocklist.json` | ✅ | 屏蔽插件列表 |
 | `~/.claude/plugins/known_marketplaces.json` | ✅ | 添加的 Marketplace 源 |
 | `~/.claude/plugins/marketplaces/` | ❌ | 缓存，可重新下载 |
@@ -105,8 +105,8 @@ bash <(curl -fsSL https://raw.githubusercontent.com/.../install.sh)
 | 文件 | 是否同步 | 说明 |
 |---|---|---|
 | `~/.codex/AGENTS.md` | ✅ | Agent 指令 |
-| `~/.codex/config.toml` | ✅ | MCP 配置、模型参数 |
-| `~/.codex/skills/` | ✅ | 全部自定义 Skill |
+| `~/.codex/config.toml` | ✅ 过滤 | 过滤 `[projects.*]`（本机路径）和 `env`（Token），其余保留 |
+| `~/.codex/skills/` | ✅ | 全部自定义 Skill（镜像同步，含删除） |
 | `~/.codex/rules/` | ✅ | 规则文件 |
 | `~/.codex/memories/` | ✅ | AI 记忆 |
 | `~/.codex/auth.json` | ❌ | 登录 Token（各机器独立） |
@@ -134,7 +134,9 @@ auto_push: false   # 设为 true：shell 退出时自动 push
 
 - **强烈建议使用私有仓库**（配置含个人指令和工具习惯）
 - `settings.json` 的 `env` 字段（含 API Token）**自动过滤**，不会同步
+- `config.toml` 的 `[projects.*]` 段（本机路径）和 `env` 字段（可能含 Token）**自动过滤**
 - `auth.json`（登录 Token）**永远不同步**，每台机器需独立登录
+- 新机器 Pull 后请检查 `config.toml` 中 MCP server 的命令路径是否适配本机
 - 其余敏感字段如有需要，可在同步仓库的 `.gitignore` 中手动添加
 
 ---
