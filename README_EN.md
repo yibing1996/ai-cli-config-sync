@@ -60,7 +60,7 @@ cd cli-config-sync
 bash install.sh
 ```
 
-The installer sets up the core scripts and writes the Skill into `~/.claude` / `~/.codex`; missing directories are created automatically.
+The installer sets up the core scripts and writes the Skill into `~/.claude` / `~/.codex`; it does not write a Skill into `~/.copilot`, but `push.sh` / `pull.sh` will automatically detect and sync supported Copilot files. Missing directories are created automatically.
 
 ---
 
@@ -104,7 +104,18 @@ bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/m
 
 ## What Gets Synced
 
-### GitHub Copilot CLI / Claude Code CLI
+### GitHub Copilot CLI
+
+| File | Synced | Notes |
+|---|---|---|
+| `~/.copilot/copilot-instructions.md` | ✅ | Copilot instructions file |
+| `~/.copilot/config.json` | ✅ filtered / merged | Only syncs `banner` and `model`; keeps local `copilot_tokens`, login state, `trusted_folders`, and `firstLaunchAt` |
+| `~/.copilot/mcp-config.json` | ✅ filtered / merged | Syncs MCP config; strips per-server `env` before upload and restores local `env` on pull when the server name matches |
+| `~/.copilot/logs/`, `session-state/` | ❌ | Runtime logs and session state |
+| `~/.copilot/command-history-state.json` | ❌ | Local command history state |
+| `~/.copilot/copilot.bat` and similar launchers | ❌ | Machine-local launcher files |
+
+### Claude Code CLI
 
 | File | Synced | Notes |
 |---|---|---|
@@ -149,10 +160,12 @@ The local Git working directory is at `~/.cli-sync-repo/`.
 ## Security
 
 - **Private repository strongly recommended** (configs contain personal preferences and tool configurations)
+- `~/.copilot/config.json` syncs only clearly safe shared fields (currently `banner` and `model`); `copilot_tokens`, login state, `trusted_folders`, and `firstLaunchAt` stay local
+- `~/.copilot/mcp-config.json` automatically strips per-server `env` before upload and restores local `env` on pull when possible
 - The `env` field in `settings.json` (API tokens) is **automatically filtered out**
 - `config.toml`: `[projects.*]` sections (local paths) and `env` fields (potential tokens) are **automatically filtered out**
 - `auth.json` (login tokens) is **never synced** — you must log in on each machine
-- After pulling on a new machine, check MCP server command paths in `config.toml` for compatibility
+- After pulling on a new machine, check MCP server command paths in both `config.toml` and `~/.copilot/mcp-config.json` for compatibility
 - Add additional sensitive paths to `.gitignore` in your sync repo as needed
 
 ---
@@ -162,7 +175,7 @@ The local Git working directory is at `~/.cli-sync-repo/`.
 - The project is currently validated mainly in **GitHub + Bash/Linux/WSL-style environments**; test Gitee or other environments before relying on them
 - Auto-sync uses a conservative fast-forward-only strategy; if the local sync repo has divergence, uncommitted changes, or unpushed commits, auto-pull stops instead of forcing a merge
 - Runtime-local data such as `auth.json`, `vendor_imports/`, databases, sessions, and caches are intentionally not synced
-- After restore, manually verify machine-specific paths in `config.toml`, such as MCP command paths, interpreter locations, and working directories
+- After restore, manually verify machine-specific paths in both `config.toml` and `~/.copilot/mcp-config.json`, such as MCP command paths, interpreter locations, and working directories
 - The project is still in Beta and is better suited for personal or small-scale trial usage before wider team rollout
 
 ---
@@ -193,8 +206,8 @@ The script checks:
 
 - Core script syntax
 - Whether the installer works under a temporary `HOME`
-- Whether `push.sh` filters sensitive fields
-- Whether `pull.sh` preserves machine-local private fields
+- Whether `push.sh` filters Claude / Codex / Copilot sensitive fields
+- Whether `pull.sh` preserves machine-local private fields, including Copilot login state and MCP env
 - Whether `pull.sh` stops safely when the sync repo has diverged
 
 ---
@@ -208,7 +221,7 @@ If you plan to publish this project or ask others to try it, verify at least the
 - On a machine that already has real configs, run install, initialization, and first push; confirm the remote repo contains the expected files
 - Validate restore behavior in a **clean environment**, such as a second machine, a container, or a temporary `HOME` directory
 - After restore succeeds on the second machine, modify `AGENTS.md`, `CLAUDE.md`, or one custom Skill, then run another push and pull to confirm two-way sync
-- Check that `env` in `settings.json`, plus `env` and `[projects.*]` in `config.toml`, stay local and are not uploaded to the remote repo
+- Check that `env` in `settings.json`, plus `env` and `[projects.*]` in `config.toml`, and the login / token / `trusted_folders` fields in `~/.copilot/config.json` stay local and are not uploaded to the remote repo
 - Trigger one auto-sync scenario and inspect `~/.cli-sync/auto-sync.log` to confirm there are no auth failures, divergence issues, or fast-forward failures
 
 Recommended minimum test matrix:

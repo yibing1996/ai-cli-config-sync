@@ -5,6 +5,7 @@ set -e
 
 CONFIG_FILE="$HOME/.cli-sync/config.yml"
 REPO="$HOME/.cli-sync-repo"
+COPILOT_DIR="$HOME/.copilot"
 CLAUDE_DIR="$HOME/.claude"
 CODEX_DIR="$HOME/.codex"
 
@@ -48,7 +49,82 @@ _sync_dir() {
   fi
 }
 
-# ── GitHub Copilot CLI / Claude Code CLI ──────────────────────────────────────
+# ── GitHub Copilot CLI ────────────────────────────────────────────────────────
+_filter_copilot_config_json() {
+  local src="$1" dst="$2"
+
+  if command -v python3 &> /dev/null; then
+    SRC="$src" DST="$dst" python3 << 'PYEOF'
+import json
+import os
+
+src = os.environ['SRC']
+dst = os.environ['DST']
+
+with open(src) as f:
+    data = json.load(f)
+
+# 仅同步明确安全、适合跨机器共享的字段。
+result = {}
+for key in ('banner', 'model'):
+    if key in data:
+        result[key] = data[key]
+
+with open(dst, 'w') as f:
+    json.dump(result, f, indent=2, ensure_ascii=False)
+    f.write('\n')
+PYEOF
+  else
+    echo "⚠️  未找到 python3，已跳过 Copilot config.json 同步（避免上传本机登录态和 Token）"
+  fi
+}
+
+_filter_copilot_mcp_json() {
+  local src="$1" dst="$2"
+
+  if command -v python3 &> /dev/null; then
+    SRC="$src" DST="$dst" python3 << 'PYEOF'
+import json
+import os
+
+src = os.environ['SRC']
+dst = os.environ['DST']
+
+with open(src) as f:
+    data = json.load(f)
+
+result = json.loads(json.dumps(data))
+servers = result.get('mcpServers')
+if isinstance(servers, dict):
+    for name, server in servers.items():
+        if isinstance(server, dict):
+            # env 常包含 Token、代理和本机特定环境变量，不入库。
+            server.pop('env', None)
+
+with open(dst, 'w') as f:
+    json.dump(result, f, indent=2, ensure_ascii=False)
+    f.write('\n')
+PYEOF
+  else
+    echo "⚠️  未找到 python3，已跳过 Copilot mcp-config.json 同步（避免上传本机 env）"
+  fi
+}
+
+if [ -d "$COPILOT_DIR" ]; then
+  mkdir -p "$REPO/copilot"
+
+  [ -f "$COPILOT_DIR/copilot-instructions.md" ] && cp "$COPILOT_DIR/copilot-instructions.md" "$REPO/copilot/"
+
+  if [ -f "$COPILOT_DIR/config.json" ]; then
+    _filter_copilot_config_json "$COPILOT_DIR/config.json" "$REPO/copilot/config.json"
+  fi
+
+  if [ -f "$COPILOT_DIR/mcp-config.json" ]; then
+    _filter_copilot_mcp_json "$COPILOT_DIR/mcp-config.json" "$REPO/copilot/mcp-config.json"
+  fi
+fi
+
+# ── Claude Code CLI ───────────────────────────────────────────────────────────
 if [ -d "$CLAUDE_DIR" ]; then
   mkdir -p "$REPO/claude/plugins" "$REPO/claude/skills"
 

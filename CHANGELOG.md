@@ -21,6 +21,9 @@
 - 修复 `pull.sh` 中 Python heredoc 的路径展开风险，避免特殊路径导致合并逻辑报错
 - 将“同步配置”默认策略调整为先推送、失败即停，避免本地未推送文件在拉取阶段被镜像删除
 - 简化 `push.sh` 的推送失败处理，提供更明确的认证、权限与远端领先排查提示
+- 修正“GitHub Copilot CLI 与 `~/.claude` 共用配置”的错误假设，新增真正的 `~/.copilot` 同步支持
+- 为 Copilot 增加 `config.json` / `mcp-config.json` 的敏感字段过滤与本机私有字段保留逻辑
+- 更新 README、Skill 文档与 smoke test，使 Copilot、Claude Code、Codex 三者的真实同步范围一致
 
 ### 备注
 

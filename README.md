@@ -60,7 +60,7 @@ cd cli-config-sync
 bash install.sh
 ```
 
-安装脚本会安装核心脚本，并在 `~/.claude` / `~/.codex` 下写入 Skill；目录不存在时会自动创建。
+安装脚本会安装核心脚本，并在 `~/.claude` / `~/.codex` 下写入 Skill；`~/.copilot` 不写入 Skill，但后续 `push.sh` / `pull.sh` 会自动识别并同步受支持的 Copilot 配置。目录不存在时会自动创建。
 
 ---
 
@@ -104,7 +104,18 @@ bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/m
 
 ## 同步范围
 
-### GitHub Copilot CLI / Claude Code CLI
+### GitHub Copilot CLI
+
+| 文件 | 是否同步 | 说明 |
+|---|---|---|
+| `~/.copilot/copilot-instructions.md` | ✅ | Copilot 指令文件 |
+| `~/.copilot/config.json` | ✅ 过滤 / 合并 | 仅同步 `banner`、`model`；保留本机 `copilot_tokens`、登录态、`trusted_folders`、`firstLaunchAt` |
+| `~/.copilot/mcp-config.json` | ✅ 过滤 / 合并 | 同步 MCP 配置；远端自动去掉各 server 的 `env`，Pull 时保留本机同名 server 的 `env` |
+| `~/.copilot/logs/`、`session-state/` | ❌ | 运行时日志与会话状态 |
+| `~/.copilot/command-history-state.json` | ❌ | 本机命令历史状态 |
+| `~/.copilot/copilot.bat` 等启动器 | ❌ | 本机启动脚本 |
+
+### Claude Code CLI
 
 | 文件 | 是否同步 | 说明 |
 |---|---|---|
@@ -149,10 +160,12 @@ auto_push: false   # 设为 true：shell 退出时自动 push
 ## 安全说明
 
 - **强烈建议使用私有仓库**（配置含个人指令和工具习惯）
+- `~/.copilot/config.json` 只同步明确安全的共享字段（当前为 `banner`、`model`）；`copilot_tokens`、登录态、`trusted_folders`、`firstLaunchAt` 会保留在本机
+- `~/.copilot/mcp-config.json` 会自动过滤各 MCP server 的 `env` 字段；Pull 时会尽量恢复本机已有的 `env`
 - `settings.json` 的 `env` 字段（含 API Token）**自动过滤**，不会同步
 - `config.toml` 的 `[projects.*]` 段（本机路径）和 `env` 字段（可能含 Token）**自动过滤**
 - `auth.json`（登录 Token）**永远不同步**，每台机器需独立登录
-- 新机器 Pull 后请检查 `config.toml` 中 MCP server 的命令路径是否适配本机
+- 新机器 Pull 后请检查 `config.toml` 与 `~/.copilot/mcp-config.json` 中 MCP server 的命令路径是否适配本机
 - 其余敏感字段如有需要，可在同步仓库的 `.gitignore` 中手动添加
 
 ---
@@ -162,7 +175,7 @@ auto_push: false   # 设为 true：shell 退出时自动 push
 - 当前主要在 **GitHub + Bash/Linux/WSL 风格环境** 下验证；Gitee 与其他环境建议先自行回归测试
 - 自动同步使用保守的快进策略；如果本地同步仓库存在分叉、未提交变更或未推送提交，自动拉取会停止而不是强行合并
 - `auth.json`、`vendor_imports/`、数据库、会话、缓存等本机运行数据不会同步
-- 恢复后请手动检查 `config.toml` 中和本机路径强相关的 MCP 命令、解释器路径、工作目录等配置
+- 恢复后请手动检查 `config.toml` 与 `~/.copilot/mcp-config.json` 中和本机路径强相关的 MCP 命令、解释器路径、工作目录等配置
 - 项目当前仍处于 Beta 阶段，更适合个人或小范围试用后再推广到团队
 
 ---
@@ -193,8 +206,8 @@ bash scripts/dev-smoke-test.sh
 
 - 核心脚本语法是否正确
 - 安装脚本是否能在临时 `HOME` 下完成安装
-- `push.sh` 是否会过滤敏感字段
-- `pull.sh` 是否会保留本机私有字段
+- `push.sh` 是否会过滤 Claude / Codex / Copilot 的敏感字段
+- `pull.sh` 是否会保留本机私有字段（含 Copilot 登录态和 MCP env）
 - `pull.sh` 在仓库分叉时是否会安全停止
 
 ---
@@ -208,7 +221,7 @@ bash scripts/dev-smoke-test.sh
 - 在“已配置好的机器”上执行安装、初始化和首次推送，确认远端仓库里已产生预期文件
 - 在“全新环境”中验证恢复流程，例如新机器、容器，或使用一个临时 `HOME` 目录
 - 在第二台机器恢复成功后，修改 `AGENTS.md`、`CLAUDE.md` 或某个 Skill，再执行一次推送和拉取，确认双向同步正常
-- 检查 `settings.json` 的 `env`、`config.toml` 的 `env` 与 `[projects.*]` 是否按预期保留在本机、未被同步到远端
+- 检查 `settings.json` 的 `env`、`config.toml` 的 `env` 与 `[projects.*]`、以及 `~/.copilot/config.json` 的登录态 / Token / `trusted_folders` 是否按预期保留在本机、未被同步到远端
 - 手动触发一次自动同步场景，并查看 `~/.cli-sync/auto-sync.log`，确认没有出现认证失败、分叉或快进失败
 
 推荐最少验证矩阵：

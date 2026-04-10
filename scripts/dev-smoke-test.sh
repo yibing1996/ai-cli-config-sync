@@ -33,19 +33,33 @@ assert_not_contains() {
 run_syntax_check() {
   log "检查核心脚本语法"
   cd "$ROOT_DIR"
-  bash -n install.sh uninstall.sh scripts/push.sh scripts/pull.sh
+  bash -n install.sh uninstall.sh scripts/push.sh scripts/pull.sh scripts/dev-smoke-test.sh
 }
 
 run_docs_consistency_check() {
   log "检查文档中的安全同步语义"
   assert_contains "$ROOT_DIR/README.md" '安全同步（先推送本地改动；失败即停）'
   assert_not_contains "$ROOT_DIR/README.md" '先保守拉取，再推送'
+  assert_contains "$ROOT_DIR/README.md" '### GitHub Copilot CLI'
+  assert_contains "$ROOT_DIR/README.md" '### Claude Code CLI'
+  assert_not_contains "$ROOT_DIR/README.md" '### GitHub Copilot CLI / Claude Code CLI'
   assert_contains "$ROOT_DIR/README_EN.md" 'Safe sync (push local changes first; stop on failure)'
   assert_not_contains "$ROOT_DIR/README_EN.md" 'safe pull first, then push'
+  assert_contains "$ROOT_DIR/README_EN.md" '### GitHub Copilot CLI'
+  assert_contains "$ROOT_DIR/README_EN.md" '### Claude Code CLI'
+  assert_not_contains "$ROOT_DIR/README_EN.md" '### GitHub Copilot CLI / Claude Code CLI'
   assert_contains "$ROOT_DIR/skills/cli-config-sync/SKILL.md" '安全同步（先推送，失败即停）'
   assert_not_contains "$ROOT_DIR/skills/cli-config-sync/SKILL.md" '先 pull 再 push'
+  assert_contains "$ROOT_DIR/skills/cli-config-sync/SKILL.md" '### GitHub Copilot CLI（`~/.copilot/`）'
+  assert_not_contains "$ROOT_DIR/skills/cli-config-sync/SKILL.md" '### GitHub Copilot CLI / Claude Code CLI（`~/.claude/`）'
+  assert_contains "$ROOT_DIR/skills/cli-config-sync/SKILL.md" '_sanitized_diff()'
+  assert_not_contains "$ROOT_DIR/skills/cli-config-sync/SKILL.md" 'for f in copilot-instructions.md config.json mcp-config.json; do'
   assert_contains "$ROOT_DIR/skills/cli-config-sync-codex/SKILL.md" '安全同步（先推送，失败即停）'
   assert_not_contains "$ROOT_DIR/skills/cli-config-sync-codex/SKILL.md" '先 pull 再 push'
+  assert_contains "$ROOT_DIR/skills/cli-config-sync-codex/SKILL.md" '### GitHub Copilot CLI（`~/.copilot/`）'
+  assert_not_contains "$ROOT_DIR/skills/cli-config-sync-codex/SKILL.md" '### GitHub Copilot CLI / Claude Code CLI（`~/.claude/`）'
+  assert_contains "$ROOT_DIR/skills/cli-config-sync-codex/SKILL.md" '_sanitized_diff()'
+  assert_not_contains "$ROOT_DIR/skills/cli-config-sync-codex/SKILL.md" 'for f in copilot-instructions.md config.json mcp-config.json; do'
 }
 
 run_install_smoke() {
@@ -100,6 +114,85 @@ EOF
   assert_not_contains "$filtered" 'OPENAI_API_KEY'
   assert_not_contains "$filtered" '[projects."/tmp/proj"]'
   assert_contains "$filtered" 'name = "gpt-5"'
+
+  rm -rf "$tmpdir"
+}
+
+run_copilot_push_filter_smoke() {
+  local tmpdir home remote filtered_config filtered_mcp
+  tmpdir="$(mktemp -d)"
+  home="$tmpdir/home"
+  remote="$tmpdir/remote.git"
+
+  log "验证 push.sh 会过滤 Copilot 私有字段和 MCP env"
+  mkdir -p "$home/.cli-sync-repo" "$home/.cli-sync" "$home/.copilot"
+  git init --bare "$remote" >/dev/null 2>&1
+  git init "$home/.cli-sync-repo" >/dev/null 2>&1
+  git -C "$home/.cli-sync-repo" config user.name smoke-test
+  git -C "$home/.cli-sync-repo" config user.email smoke@example.com
+  git -C "$home/.cli-sync-repo" remote add origin "$remote"
+  git -C "$home/.cli-sync-repo" checkout -b main >/dev/null 2>&1
+
+  cat > "$home/.cli-sync/config.yml" <<EOF
+remote: $remote
+branch: main
+EOF
+
+  cat > "$home/.copilot/config.json" <<'EOF'
+{
+  "firstLaunchAt": "2026-04-10T12:00:00Z",
+  "banner": {
+    "hidden": true
+  },
+  "copilot_tokens": {
+    "github.com": {
+      "token": "secret"
+    }
+  },
+  "last_logged_in_user": "zyb",
+  "logged_in_users": [
+    "zyb"
+  ],
+  "trusted_folders": [
+    "/tmp/project"
+  ],
+  "model": "gpt-5"
+}
+EOF
+
+  cat > "$home/.copilot/mcp-config.json" <<'EOF'
+{
+  "mcpServers": {
+    "duckduckgo-search": {
+      "command": "uvx",
+      "args": ["duckduckgo-mcp-server"],
+      "env": {
+        "UV_HTTP_TIMEOUT": "120"
+      }
+    }
+  }
+}
+EOF
+
+  cat > "$home/.copilot/copilot-instructions.md" <<'EOF'
+# Copilot
+shared instructions
+EOF
+
+  HOME="$home" bash "$ROOT_DIR/scripts/push.sh" >/dev/null 2>&1
+
+  filtered_config="$home/.cli-sync-repo/copilot/config.json"
+  filtered_mcp="$home/.cli-sync-repo/copilot/mcp-config.json"
+  assert_file "$filtered_config"
+  assert_file "$filtered_mcp"
+  assert_file "$home/.cli-sync-repo/copilot/copilot-instructions.md"
+  assert_contains "$filtered_config" '"banner"'
+  assert_contains "$filtered_config" '"model": "gpt-5"'
+  assert_not_contains "$filtered_config" 'copilot_tokens'
+  assert_not_contains "$filtered_config" 'last_logged_in_user'
+  assert_not_contains "$filtered_config" 'trusted_folders'
+  assert_contains "$filtered_mcp" '"duckduckgo-search"'
+  assert_not_contains "$filtered_mcp" '"env"'
 
   rm -rf "$tmpdir"
 }
@@ -169,6 +262,114 @@ EOF
   assert_contains "$merged" '[projects."/tmp/proj"]'
   assert_contains "$settings" 'ANTHROPIC_API_KEY'
   assert_contains "$settings" '"theme": "light"'
+
+  rm -rf "$tmpdir"
+}
+
+run_copilot_pull_merge_smoke() {
+  local tmpdir home remote merged_config merged_mcp
+  tmpdir="$(mktemp -d)"
+  home="$tmpdir/home"
+  remote="$tmpdir/remote.git"
+
+  log "验证 pull.sh 会保留 Copilot 本机私有字段和 MCP env"
+  git init --bare "$remote" >/dev/null 2>&1
+  git init "$tmpdir/src" >/dev/null 2>&1
+  git -C "$tmpdir/src" config user.name smoke-test
+  git -C "$tmpdir/src" config user.email smoke@example.com
+  mkdir -p "$tmpdir/src/copilot"
+
+  cat > "$tmpdir/src/copilot/config.json" <<'EOF'
+{
+  "banner": {
+    "hidden": false
+  },
+  "model": "gpt-5"
+}
+EOF
+
+  cat > "$tmpdir/src/copilot/mcp-config.json" <<'EOF'
+{
+  "mcpServers": {
+    "duckduckgo-search": {
+      "command": "uvx",
+      "args": ["duckduckgo-mcp-server"]
+    }
+  }
+}
+EOF
+
+  cat > "$tmpdir/src/copilot/copilot-instructions.md" <<'EOF'
+# Shared Copilot Instructions
+EOF
+
+  git -C "$tmpdir/src" add copilot >/dev/null 2>&1
+  git -C "$tmpdir/src" commit -m "init" >/dev/null 2>&1
+  git -C "$tmpdir/src" branch -M main
+  git -C "$tmpdir/src" remote add origin "$remote"
+  git -C "$tmpdir/src" push origin main >/dev/null 2>&1
+  git --git-dir="$remote" symbolic-ref HEAD refs/heads/main
+
+  mkdir -p "$home/.cli-sync" "$home/.copilot"
+  git clone "$remote" "$home/.cli-sync-repo" >/dev/null 2>&1
+
+  cat > "$home/.cli-sync/config.yml" <<EOF
+remote: $remote
+branch: main
+EOF
+
+  cat > "$home/.copilot/config.json" <<'EOF'
+{
+  "firstLaunchAt": "2026-01-01T00:00:00Z",
+  "copilot_tokens": {
+    "github.com": {
+      "token": "secret"
+    }
+  },
+  "last_logged_in_user": "zyb",
+  "logged_in_users": [
+    "zyb"
+  ],
+  "trusted_folders": [
+    "/tmp/project"
+  ]
+}
+EOF
+
+  cat > "$home/.copilot/mcp-config.json" <<'EOF'
+{
+  "mcpServers": {
+    "duckduckgo-search": {
+      "command": "old-command",
+      "args": ["old"],
+      "env": {
+        "UV_HTTP_TIMEOUT": "120"
+      }
+    },
+    "local-only": {
+      "command": "keep-local",
+      "env": {
+        "LOCAL_ONLY": "1"
+      }
+    }
+  }
+}
+EOF
+
+  HOME="$home" bash "$ROOT_DIR/scripts/pull.sh" >/dev/null 2>&1
+
+  merged_config="$home/.copilot/config.json"
+  merged_mcp="$home/.copilot/mcp-config.json"
+  assert_contains "$merged_config" '"model": "gpt-5"'
+  assert_contains "$merged_config" 'copilot_tokens'
+  assert_contains "$merged_config" 'last_logged_in_user'
+  assert_contains "$merged_config" 'trusted_folders'
+  assert_not_contains "$merged_config" 'old-command'
+  assert_contains "$merged_mcp" '"command": "uvx"'
+  assert_contains "$merged_mcp" '"UV_HTTP_TIMEOUT": "120"'
+  assert_contains "$merged_mcp" 'local-only'
+  assert_contains "$merged_mcp" 'LOCAL_ONLY'
+  assert_contains "$home/.copilot/copilot-instructions.md" 'Shared Copilot Instructions'
 
   rm -rf "$tmpdir"
 }
@@ -280,7 +481,9 @@ main() {
   run_docs_consistency_check
   run_install_smoke
   run_push_filter_smoke
+  run_copilot_push_filter_smoke
   run_pull_merge_smoke
+  run_copilot_pull_merge_smoke
   run_pull_special_path_smoke
   run_pull_diverge_smoke
   log "✅ 所有 smoke test 通过"

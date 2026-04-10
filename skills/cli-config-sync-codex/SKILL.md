@@ -40,7 +40,18 @@ description: 将 AI CLI 工具（Codex CLI、Claude Code CLI、GitHub Copilot CL
 - `vendor_imports/` — 系统自带 Skill 库（可重新安装）
 - `*.sqlite*`、`logs_*`、`state_*`、`cache/`、`sessions/`、`archived_sessions/`、`tmp/`、`.tmp/`
 
-### GitHub Copilot CLI / Claude Code CLI（`~/.claude/`）
+### GitHub Copilot CLI（`~/.copilot/`）
+
+**同步：**
+- `copilot-instructions.md` — Copilot 指令文件
+- `config.json` — 仅同步 `banner`、`model`；保留本机 `copilot_tokens`、登录态、`trusted_folders`、`firstLaunchAt`
+- `mcp-config.json` — 同步 MCP 配置；远端自动过滤各 server 的 `env`，Pull 时保留本机同名 server 的 `env`
+
+**不同步：**
+- `logs/`、`session-state/`、`command-history-state.json`
+- `copilot.bat` 等本机启动器
+
+### Claude Code CLI（`~/.claude/`）
 
 **同步：**
 - `CLAUDE.md` — AI 主指令文件
@@ -190,6 +201,10 @@ file-history/
 
 # Marketplace 缓存（可从 GitHub 重新下载）
 claude/plugins/marketplaces/
+copilot/logs/
+copilot/session-state/
+copilot/command-history-state.json
+copilot/copilot.bat
 codex/vendor_imports/
 GITIGNEOF
 else
@@ -309,6 +324,80 @@ fi
 
 ```bash
 REPO="$HOME/.cli-sync-repo"
+TMP_DIR=$(mktemp -d)
+
+cleanup() {
+  rm -rf "$TMP_DIR"
+}
+trap cleanup EXIT
+
+_sanitized_diff() {
+  local kind="$1" local_file="$2" repo_file="$3" out_file="$4"
+  [ -f "$local_file" ] && [ -f "$repo_file" ] || return 1
+
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "  ℹ️  未找到 python3，跳过 $kind 的过滤后对比"
+    return 1
+  fi
+
+  KIND="$kind" LOCAL_FILE="$local_file" OUT_FILE="$out_file" python3 << 'PYEOF'
+import json
+import os
+import re
+
+kind = os.environ['KIND']
+local_file = os.environ['LOCAL_FILE']
+out_file = os.environ['OUT_FILE']
+
+if kind == 'copilot-config':
+    with open(local_file) as f:
+        data = json.load(f)
+    result = {}
+    for key in ('banner', 'model'):
+        if key in data:
+            result[key] = data[key]
+    with open(out_file, 'w') as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+        f.write('\n')
+elif kind == 'copilot-mcp':
+    with open(local_file) as f:
+        data = json.load(f)
+    result = json.loads(json.dumps(data))
+    servers = result.get('mcpServers')
+    if isinstance(servers, dict):
+        for name, server in servers.items():
+            if isinstance(server, dict):
+                server.pop('env', None)
+    with open(out_file, 'w') as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+        f.write('\n')
+elif kind == 'codex-config':
+    with open(local_file) as f:
+        lines = f.readlines()
+    result = []
+    skip_section = False
+    for line in lines:
+        if re.match(r'^\s*\[projects\.', line):
+            skip_section = True
+            continue
+        if re.match(r'^\s*\[(?!projects\.)', line):
+            skip_section = False
+        if skip_section:
+            continue
+        if re.match(r'^\s*env\s*=\s*\{', line):
+            indent = re.match(r'^(\s*)', line).group(1)
+            result.append(f'{indent}# env = {{ ... }}  # 已过滤，请在本机手动配置\n')
+            continue
+        result.append(line)
+    with open(out_file, 'w') as f:
+        f.write(''.join(result).rstrip('\n') + '\n')
+else:
+    raise SystemExit(f'unknown kind: {kind}')
+PYEOF
+
+  ! diff -q "$out_file" "$repo_file" > /dev/null 2>&1
+}
+
 echo "=== Git 状态 ==="
 cd "$REPO" && git status --short
 echo ""
@@ -318,7 +407,23 @@ git log --oneline -5
 echo ""
 echo "=== 本地文件对比 ==="
 CHANGED=0
-for f in AGENTS.md config.toml; do
+for f in copilot-instructions.md; do
+  if [ -f "$HOME/.copilot/$f" ] && [ -f "$REPO/copilot/$f" ]; then
+    if ! diff -q "$HOME/.copilot/$f" "$REPO/copilot/$f" > /dev/null 2>&1; then
+      echo "  📝 copilot/$f 有本地未推送的修改"
+      CHANGED=1
+    fi
+  fi
+done
+if _sanitized_diff "copilot-config" "$HOME/.copilot/config.json" "$REPO/copilot/config.json" "$TMP_DIR/copilot-config.json"; then
+  echo "  📝 copilot/config.json 有本地未推送的共享字段修改"
+  CHANGED=1
+fi
+if _sanitized_diff "copilot-mcp" "$HOME/.copilot/mcp-config.json" "$REPO/copilot/mcp-config.json" "$TMP_DIR/copilot-mcp.json"; then
+  echo "  📝 copilot/mcp-config.json 有本地未推送的共享配置修改"
+  CHANGED=1
+fi
+for f in AGENTS.md; do
   if [ -f "$HOME/.codex/$f" ] && [ -f "$REPO/codex/$f" ]; then
     if ! diff -q "$HOME/.codex/$f" "$REPO/codex/$f" > /dev/null 2>&1; then
       echo "  📝 codex/$f 有本地未推送的修改"
@@ -326,6 +431,10 @@ for f in AGENTS.md config.toml; do
     fi
   fi
 done
+if _sanitized_diff "codex-config" "$HOME/.codex/config.toml" "$REPO/codex/config.toml" "$TMP_DIR/codex-config.toml"; then
+  echo "  📝 codex/config.toml 有本地未推送的共享配置修改"
+  CHANGED=1
+fi
 for f in CLAUDE.md; do
   if [ -f "$HOME/.claude/$f" ] && [ -f "$REPO/claude/$f" ]; then
     if ! diff -q "$HOME/.claude/$f" "$REPO/claude/$f" > /dev/null 2>&1; then
@@ -349,14 +458,16 @@ done
 | 自动 pull 失败 | 查看 `~/.cli-sync/auto-sync.log`，确认是否存在分叉、未提交变更或认证失败 |
 | 推送失败 | 检查远端地址、认证、网络和仓库权限；若远端已领先，先执行拉取并处理差异 |
 | merge 冲突 | `cd ~/.cli-sync-repo && git pull --rebase` 后手动解决 |
-| `jq` / `python3` 未安装 | `sudo apt install jq`（推荐）；否则 settings.json/config.toml 整体复制 |
+| `jq` / `python3` 未安装 | `sudo apt install jq python3`（推荐）；否则部分 JSON 合并会降级，Copilot 敏感字段不会自动安全过滤 |
 
 ---
 
 ## 安全注意事项
 
 1. **强烈建议使用私有仓库**，配置文件含个人工作习惯和 MCP 配置
-2. `settings.json` 的 `env` 字段（含 API Token）**自动过滤**，还原后需手动重设
-3. `config.toml` 的 `[projects.*]` 段（本机路径）和 `env` 字段（可能含 Token）**自动过滤**
-4. `auth.json` **永远不同步**，每台机器需独立登录
-5. 新机器 Pull 后请检查 `config.toml` 中 MCP server 的命令路径是否适配本机
+2. `~/.copilot/config.json` 仅同步明确安全的共享字段；`copilot_tokens`、登录态、`trusted_folders`、`firstLaunchAt` 保留在本机
+3. `~/.copilot/mcp-config.json` 会自动过滤各 MCP server 的 `env`；新机器 Pull 后请检查命令路径是否适配本机
+4. `settings.json` 的 `env` 字段（含 API Token）**自动过滤**，还原后需手动重设
+5. `config.toml` 的 `[projects.*]` 段（本机路径）和 `env` 字段（可能含 Token）**自动过滤**
+6. `auth.json` **永远不同步**，每台机器需独立登录
+7. 新机器 Pull 后请检查 `config.toml` 中 MCP server 的命令路径是否适配本机

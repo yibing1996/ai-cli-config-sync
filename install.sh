@@ -82,17 +82,24 @@ fi
 # ── 检测并安装 Skill 到各 CLI ────────────────────────────────────────────────
 INSTALLED=0
 
-# GitHub Copilot CLI / Claude Code CLI（共用 ~/.claude/skills/）
+# Claude Code CLI
 CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
 if [ -d "$HOME/.claude" ]; then
-  info "检测到 GitHub Copilot CLI / Claude Code CLI（~/.claude/）"
+  info "检测到 Claude Code CLI（~/.claude/）"
 else
-  info "未检测到 ~/.claude/ 目录，将自动创建（CLI 首次运行后即可使用 Skill）"
+  info "未检测到 ~/.claude/ 目录，将自动创建（Claude Code 首次运行后即可使用 Skill）"
 fi
 mkdir -p "$CLAUDE_SKILLS_DIR/cli-config-sync"
 cp "$CLAUDE_SKILL_SRC" "$CLAUDE_SKILLS_DIR/cli-config-sync/SKILL.md"
 ok "已安装 Skill → $CLAUDE_SKILLS_DIR/cli-config-sync/SKILL.md"
 INSTALLED=$((INSTALLED + 1))
+
+# GitHub Copilot CLI
+if [ -d "$HOME/.copilot" ]; then
+  info "检测到 GitHub Copilot CLI（~/.copilot/），其受支持配置将由 ~/.cli-sync/push.sh 和 pull.sh 同步"
+else
+  info "未检测到 ~/.copilot/ 目录；后续安装 GitHub Copilot CLI 后，push/pull 会自动识别并同步其受支持配置"
+fi
 
 # Codex CLI
 CODEX_SKILLS_DIR="$HOME/.codex/skills"

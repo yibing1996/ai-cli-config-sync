@@ -5,10 +5,13 @@
 # 核心策略：拉取远端配置覆盖本地，但保留本机私有字段：
 #   - settings.json 的 env 字段（API Token）
 #   - config.toml 的 [projects.*] 段和 env 字段
+#   - Copilot config.json 的登录态、Token 与本机信任目录
+#   - Copilot mcp-config.json 中各 server 的 env 字段
 set -e
 
 CONFIG_FILE="$HOME/.cli-sync/config.yml"
 REPO="$HOME/.cli-sync-repo"
+COPILOT_DIR="$HOME/.copilot"
 CLAUDE_DIR="$HOME/.claude"
 CODEX_DIR="$HOME/.codex"
 
@@ -193,7 +196,113 @@ PYEOF
   fi
 }
 
-# ── GitHub Copilot CLI / Claude Code CLI ──────────────────────────────────────
+# ── Copilot config.json 智能合并：远端共享字段 + 保留本机登录态 / Token ─────────
+_merge_copilot_config_json() {
+  local remote_file="$1" local_file="$2"
+  [ -f "$remote_file" ] || return 0
+
+  if [ ! -f "$local_file" ]; then
+    cp "$remote_file" "$local_file"
+    return 0
+  fi
+
+  if command -v python3 &> /dev/null; then
+    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" python3 << 'PYEOF'
+import json
+import os
+
+remote = os.environ['REMOTE_FILE']
+local = os.environ['LOCAL_FILE']
+
+with open(local) as f:
+    local_data = json.load(f)
+with open(remote) as f:
+    remote_data = json.load(f)
+
+result = dict(remote_data)
+for key in (
+    'firstLaunchAt',
+    'copilot_tokens',
+    'last_logged_in_user',
+    'logged_in_users',
+    'trusted_folders',
+):
+    if key in local_data:
+        result[key] = local_data[key]
+
+with open(local, 'w') as f:
+    json.dump(result, f, indent=2, ensure_ascii=False)
+    f.write('\n')
+PYEOF
+  else
+    echo "⚠️  无 python3，Copilot config.json 直接覆盖（本机登录态 / Token 可能丢失）"
+    cp "$remote_file" "$local_file"
+  fi
+}
+
+# ── Copilot mcp-config.json 智能合并：远端共享配置 + 保留本机 env ───────────────
+_merge_copilot_mcp_json() {
+  local remote_file="$1" local_file="$2"
+  [ -f "$remote_file" ] || return 0
+
+  if [ ! -f "$local_file" ]; then
+    cp "$remote_file" "$local_file"
+    return 0
+  fi
+
+  if command -v python3 &> /dev/null; then
+    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" python3 << 'PYEOF'
+import json
+import os
+
+remote = os.environ['REMOTE_FILE']
+local = os.environ['LOCAL_FILE']
+
+with open(local) as f:
+    local_data = json.load(f)
+with open(remote) as f:
+    remote_data = json.load(f)
+
+result = json.loads(json.dumps(remote_data))
+local_servers = local_data.get('mcpServers')
+remote_servers = result.get('mcpServers')
+
+if isinstance(local_servers, dict):
+    if not isinstance(remote_servers, dict):
+        result['mcpServers'] = json.loads(json.dumps(local_servers))
+    else:
+        for name, remote_server in remote_servers.items():
+            local_server = local_servers.get(name)
+            if isinstance(remote_server, dict) and isinstance(local_server, dict) and 'env' in local_server:
+                merged_server = dict(remote_server)
+                merged_server['env'] = local_server['env']
+                remote_servers[name] = merged_server
+
+        # 保留仅存在于本机的 MCP server，避免 pull 时静默丢失
+        for name, local_server in local_servers.items():
+            if name not in remote_servers:
+                remote_servers[name] = json.loads(json.dumps(local_server))
+
+with open(local, 'w') as f:
+    json.dump(result, f, indent=2, ensure_ascii=False)
+    f.write('\n')
+PYEOF
+  else
+    echo "⚠️  无 python3，Copilot mcp-config.json 直接覆盖（本机 env 可能丢失）"
+    cp "$remote_file" "$local_file"
+  fi
+}
+
+# ── GitHub Copilot CLI ────────────────────────────────────────────────────────
+if [ -d "$REPO/copilot" ]; then
+  mkdir -p "$COPILOT_DIR"
+
+  [ -f "$REPO/copilot/copilot-instructions.md" ] && cp "$REPO/copilot/copilot-instructions.md" "$COPILOT_DIR/"
+  _merge_copilot_config_json "$REPO/copilot/config.json" "$COPILOT_DIR/config.json"
+  _merge_copilot_mcp_json "$REPO/copilot/mcp-config.json" "$COPILOT_DIR/mcp-config.json"
+fi
+
+# ── Claude Code CLI ───────────────────────────────────────────────────────────
 if [ -d "$REPO/claude" ]; then
   # 自动创建目录（新机器上可能不存在 ~/.claude）
   mkdir -p "$CLAUDE_DIR/plugins" "$CLAUDE_DIR/skills"
@@ -226,6 +335,8 @@ fi
 
 echo "✅ 配置还原完成"
 echo "📝 注意事项："
+echo "   - Copilot config.json 已保留本机登录态、Token 与 trusted_folders（如有）"
+echo "   - Copilot mcp-config.json 已保留同名 MCP server 的本机 env（如有）"
 echo "   - settings.json 的 env 字段已保留本机值（如有）"
 echo "   - config.toml 的 [projects] 和 env 已保留本机值（如有）"
 echo "   - auth.json 不同步，各机器需独立登录"
