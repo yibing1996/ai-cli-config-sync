@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # install.sh — cli-config-sync 一键安装脚本
-# 用法：bash <(curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/cli-config-sync/main/install.sh)
+# 用法：bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh)
 #   或：bash install.sh（在项目目录下运行）
 
 set -e
@@ -28,7 +28,7 @@ PULL_SH_SRC="$SCRIPT_DIR/scripts/pull.sh"
 if [ ! -f "$CLAUDE_SKILL_SRC" ]; then
   info "检测到远程安装模式，从 GitHub 下载文件..."
   TMPDIR_CLI=$(mktemp -d)
-  REPO_URL="https://raw.githubusercontent.com/YOUR_USERNAME/cli-config-sync/main"
+  REPO_URL="https://raw.githubusercontent.com/yibing1996/cli-config-sync/main"
 
   mkdir -p "$TMPDIR_CLI/skills/cli-config-sync" "$TMPDIR_CLI/skills/cli-config-sync-codex" "$TMPDIR_CLI/scripts"
 
@@ -123,7 +123,7 @@ echo "📖 使用方法："
 echo "   在任意 AI CLI 对话中说：「初始化配置同步」"
 echo "   或：「setup config sync」"
 echo ""
-echo "🔗 更多信息：https://github.com/YOUR_USERNAME/cli-config-sync"
+echo "🔗 更多信息：https://github.com/yibing1996/cli-config-sync"
 echo ""
 
 # 清理临时目录

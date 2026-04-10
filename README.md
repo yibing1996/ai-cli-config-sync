@@ -38,15 +38,13 @@ AI 说：请提供你的 Git 仓库地址...
 ### 方法一：一行命令安装（推荐）
 
 ```bash
-# 请将 YOUR_USERNAME 替换为实际 GitHub 用户名或组织名
-bash <(curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/cli-config-sync/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh)
 ```
 
 ### 方法二：clone 后安装
 
 ```bash
-# 请将 YOUR_USERNAME 替换为实际 GitHub 用户名或组织名
-git clone https://github.com/YOUR_USERNAME/cli-config-sync.git
+git clone https://github.com/yibing1996/cli-config-sync.git
 cd cli-config-sync
 bash install.sh
 ```
@@ -83,7 +81,7 @@ AI：✅ 初始化完成，智能判断远端状态后自动同步
 ```bash
 # 1. 安装 CLI 工具（略）
 # 2. 安装 cli-config-sync
-bash <(curl -fsSL https://raw.githubusercontent.com/.../install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh)
 # 3. 在 CLI 里说：
 #    「初始化配置同步」→ 输入你的仓库地址 → 配置自动还原
 ```

@@ -38,15 +38,13 @@ AI:  Please provide your Git repository URL...
 ### Option 1: One-line install (recommended)
 
 ```bash
-# Replace YOUR_USERNAME with your actual GitHub user or org name
-bash <(curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/cli-config-sync/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh)
 ```
 
 ### Option 2: Clone and install
 
 ```bash
-# Replace YOUR_USERNAME with your actual GitHub user or org name
-git clone https://github.com/YOUR_USERNAME/cli-config-sync.git
+git clone https://github.com/yibing1996/cli-config-sync.git
 cd cli-config-sync
 bash install.sh
 ```
@@ -83,7 +81,7 @@ AI:  ✅ Setup complete, auto-detecting remote status and syncing...
 ```bash
 # 1. Install CLI tools (as usual)
 # 2. Install cli-config-sync
-bash <(curl -fsSL https://raw.githubusercontent.com/.../install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh)
 # 3. In your CLI, say:
 #    "setup config sync" → enter your repo URL → configs restored
 ```
