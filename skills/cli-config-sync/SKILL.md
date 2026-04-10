@@ -105,23 +105,33 @@ BRANCH="main"
 if [ "$(ls -A "$REPO_DIR" 2>/dev/null)" ]; then
   echo "仓库目录不为空，跳过初始化"
   BRANCH=$(git branch --show-current 2>/dev/null || echo "main")
-elif git ls-remote "$REMOTE_URL" HEAD 2>/dev/null | grep -q .; then
-  # 远端有内容（ls-remote 返回了 ref 信息）→ clone
-  git clone "$REMOTE_URL" .
-  BRANCH=$(git branch --show-current 2>/dev/null || echo "main")
-  HAS_REMOTE_CONTENT=true
-  echo "✅ 已 clone 远程仓库（分支：$BRANCH）"
 else
-  # 远端为空或不可访问 → 初始化
-  git init
-  git remote add origin "$REMOTE_URL"
-  # 尝试探测远端默认分支
-  DEFAULT_BRANCH=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | sed 's/.*: //' || true)
-  if [ -n "$DEFAULT_BRANCH" ] && [ "$DEFAULT_BRANCH" != "(unknown)" ]; then
-    BRANCH="$DEFAULT_BRANCH"
+  # 第一步：验证远端是否可访问
+  if ! git ls-remote "$REMOTE_URL" &>/dev/null; then
+    echo "❌ 无法访问远端仓库：$REMOTE_URL"
+    echo "   请检查：1) 仓库地址是否正确  2) 网络连接  3) 认证配置（SSH key 或 Token）"
+    exit 1
   fi
-  git checkout -b "$BRANCH" 2>/dev/null || git branch -m "$BRANCH"
-  echo "✅ 已初始化本地仓库（分支：$BRANCH）"
+
+  # 第二步：判断远端是否有分支内容（用 --heads 检查所有分支，比只检查 HEAD 更可靠）
+  if git ls-remote --heads "$REMOTE_URL" 2>/dev/null | grep -q .; then
+    # 远端有分支 → clone
+    git clone "$REMOTE_URL" .
+    BRANCH=$(git branch --show-current 2>/dev/null || echo "main")
+    HAS_REMOTE_CONTENT=true
+    echo "✅ 已 clone 远程仓库（分支：$BRANCH）"
+  else
+    # 远端可访问但无分支（空仓库） → 本地初始化
+    git init
+    git remote add origin "$REMOTE_URL"
+    # 尝试探测远端默认分支
+    DEFAULT_BRANCH=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | sed 's/.*: //' || true)
+    if [ -n "$DEFAULT_BRANCH" ] && [ "$DEFAULT_BRANCH" != "(unknown)" ]; then
+      BRANCH="$DEFAULT_BRANCH"
+    fi
+    git checkout -b "$BRANCH" 2>/dev/null || git branch -m "$BRANCH"
+    echo "✅ 已初始化本地仓库（分支：$BRANCH）"
+  fi
 fi
 
 # 写入配置文件（使用探测到的分支名）

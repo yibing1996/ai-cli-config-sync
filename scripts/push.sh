@@ -17,11 +17,11 @@ REMOTE=$(grep '^remote:' "$CONFIG_FILE" | sed 's/remote: *//')
 BRANCH=$(grep '^branch:' "$CONFIG_FILE" | sed 's/branch: *//' | tr -d '[:space:]')
 BRANCH=${BRANCH:-main}
 
-# ── 检查 Git 身份配置 ─────────────────────────────────────────────────────────
-GIT_NAME=$(git config user.name 2>/dev/null || true)
-GIT_EMAIL=$(git config user.email 2>/dev/null || true)
+# ── 检查 Git 身份配置（在同步仓库上下文中检查）──────────────────────────────
+GIT_NAME=$(git -C "$REPO" config user.name 2>/dev/null || true)
+GIT_EMAIL=$(git -C "$REPO" config user.email 2>/dev/null || true)
 if [ -z "$GIT_NAME" ] || [ -z "$GIT_EMAIL" ]; then
-  echo "❌ Git 身份未配置，请先运行："
+  echo "❌ Git 身份未配置（在同步仓库上下文中未找到），请先运行："
   echo "   git config --global user.name \"你的名字\""
   echo "   git config --global user.email \"你的邮箱\""
   exit 1
@@ -108,9 +108,10 @@ for line in lines:
         skip_section = False
     if skip_section:
         continue
-    # 过滤 env = { ... } 行（可能含 API Token）
-    if re.match(r'^env\s*=\s*\{', line):
-        result.append('# env = { ... }  # 已过滤，请在本机手动配置\n')
+    # 过滤 env = { ... } 行（可能含 API Token，允许前导空白/缩进）
+    if re.match(r'^\s*env\s*=\s*\{', line):
+        indent = re.match(r'^(\s*)', line).group(1)
+        result.append(f'{indent}# env = {{ ... }}  # 已过滤，请在本机手动配置\n')
         continue
     result.append(line)
 

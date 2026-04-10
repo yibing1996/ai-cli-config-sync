@@ -86,31 +86,31 @@ INSTALLED=0
 CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
 if [ -d "$HOME/.claude" ]; then
   info "检测到 GitHub Copilot CLI / Claude Code CLI（~/.claude/）"
-  mkdir -p "$CLAUDE_SKILLS_DIR/cli-config-sync"
-  cp "$CLAUDE_SKILL_SRC" "$CLAUDE_SKILLS_DIR/cli-config-sync/SKILL.md"
-  ok "已安装 Skill → $CLAUDE_SKILLS_DIR/cli-config-sync/SKILL.md"
-  INSTALLED=$((INSTALLED + 1))
 else
-  warn "未检测到 GitHub Copilot CLI / Claude Code CLI（~/.claude/ 不存在，跳过）"
+  info "未检测到 ~/.claude/ 目录，将自动创建（CLI 首次运行后即可使用 Skill）"
 fi
+mkdir -p "$CLAUDE_SKILLS_DIR/cli-config-sync"
+cp "$CLAUDE_SKILL_SRC" "$CLAUDE_SKILLS_DIR/cli-config-sync/SKILL.md"
+ok "已安装 Skill → $CLAUDE_SKILLS_DIR/cli-config-sync/SKILL.md"
+INSTALLED=$((INSTALLED + 1))
 
 # Codex CLI
 CODEX_SKILLS_DIR="$HOME/.codex/skills"
 if [ -d "$HOME/.codex" ]; then
   info "检测到 Codex CLI（~/.codex/）"
-  if [ -f "$CODEX_SKILL_SRC" ]; then
-    mkdir -p "$CODEX_SKILLS_DIR/cli-config-sync"
-    cp "$CODEX_SKILL_SRC" "$CODEX_SKILLS_DIR/cli-config-sync/SKILL.md"
-    ok "已安装 Skill → $CODEX_SKILLS_DIR/cli-config-sync/SKILL.md"
-  else
-    mkdir -p "$CODEX_SKILLS_DIR/cli-config-sync"
-    cp "$CLAUDE_SKILL_SRC" "$CODEX_SKILLS_DIR/cli-config-sync/SKILL.md"
-    ok "已安装 Skill → $CODEX_SKILLS_DIR/cli-config-sync/SKILL.md（使用通用版本）"
-  fi
-  INSTALLED=$((INSTALLED + 1))
 else
-  warn "未检测到 Codex CLI（~/.codex/ 不存在，跳过）"
+  info "未检测到 ~/.codex/ 目录，将自动创建（CLI 首次运行后即可使用 Skill）"
 fi
+if [ -f "$CODEX_SKILL_SRC" ]; then
+  mkdir -p "$CODEX_SKILLS_DIR/cli-config-sync"
+  cp "$CODEX_SKILL_SRC" "$CODEX_SKILLS_DIR/cli-config-sync/SKILL.md"
+  ok "已安装 Skill → $CODEX_SKILLS_DIR/cli-config-sync/SKILL.md"
+else
+  mkdir -p "$CODEX_SKILLS_DIR/cli-config-sync"
+  cp "$CLAUDE_SKILL_SRC" "$CODEX_SKILLS_DIR/cli-config-sync/SKILL.md"
+  ok "已安装 Skill → $CODEX_SKILLS_DIR/cli-config-sync/SKILL.md（使用通用版本）"
+fi
+INSTALLED=$((INSTALLED + 1))
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

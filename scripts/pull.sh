@@ -131,7 +131,7 @@ for line in local_lines:
     if in_projects:
         local_projects.append(line)
         continue
-    if re.match(r'^env\s*=\s*\{', line):
+    if re.match(r'^\s*env\s*=\s*\{', line):
         local_envs[current_section] = line
 
 # 读取远端文件，还原 env 行到对应段
@@ -143,8 +143,8 @@ current_section = ""
 for line in remote_lines:
     if re.match(r'^\[', line):
         current_section = line.strip()
-    # 如果远端的 env 被注释掉了，尝试用本机的 env 还原
-    if re.match(r'^#\s*env\s*=\s*\{.*已过滤', line):
+    # 如果远端的 env 被注释掉了，尝试用本机的 env 还原（允许前导空白/缩进）
+    if re.match(r'^\s*#\s*env\s*=\s*\{.*已过滤', line):
         if current_section in local_envs:
             result.append(local_envs[current_section])
             continue
