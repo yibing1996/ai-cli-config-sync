@@ -6,6 +6,10 @@ Supports: **GitHub Copilot CLI** · **Claude Code CLI** · **Codex CLI**
 
 English | [中文](./README.md)
 
+> Status: **Beta / Early Access**
+>
+> Recommended for use with a **personal private repository** first. Validate one full sync cycle across your own machines before rolling it out to a team.
+
 ---
 
 ## The Problem
@@ -34,6 +38,13 @@ AI:  Please provide your Git repository URL...
 ---
 
 ## Installation
+
+Recommended for your first trial:
+
+- Start with a **GitHub private repository**
+- Run initialization and first push on one machine that already has your configs
+- Validate pull-and-restore behavior on a second machine
+- Only after that consider making the repo public or sharing it with teammates
 
 ### Option 1: One-line install (recommended)
 
@@ -143,6 +154,16 @@ The local Git working directory is at `~/.cli-sync-repo/`.
 
 ---
 
+## Known Limitations
+
+- The project is currently validated mainly in **GitHub + Bash/Linux/WSL-style environments**; test Gitee or other environments before relying on them
+- Auto-sync uses a conservative fast-forward-only strategy; if the local sync repo has divergence, uncommitted changes, or unpushed commits, auto-pull stops instead of forcing a merge
+- Runtime-local data such as `auth.json`, `vendor_imports/`, databases, sessions, and caches are intentionally not synced
+- After restore, manually verify machine-specific paths in `config.toml`, such as MCP command paths, interpreter locations, and working directories
+- The project is still in Beta and is better suited for personal or small-scale trial usage before wider team rollout
+
+---
+
 ## Requirements
 
 - `bash` (required)
@@ -154,6 +175,44 @@ The local Git working directory is at `~/.cli-sync-repo/`.
 Auto-sync notes:
 - Startup auto-pull uses a conservative `fetch + ff-only` strategy; if the repo has diverged or has local pending changes, it stops instead of creating a merge state silently
 - Auto-sync logs are written to `~/.cli-sync/auto-sync.log`
+
+---
+
+## Local Smoke Test
+
+Before publishing, run this from the project root:
+
+```bash
+bash scripts/dev-smoke-test.sh
+```
+
+The script checks:
+
+- Core script syntax
+- Whether the installer works under a temporary `HOME`
+- Whether `push.sh` filters sensitive fields
+- Whether `pull.sh` preserves machine-local private fields
+- Whether `pull.sh` stops safely when the sync repo has diverged
+
+---
+
+## Pre-release Checklist
+
+If you plan to publish this project or ask others to try it, verify at least the following:
+
+- Run `bash scripts/dev-smoke-test.sh` locally first
+- Run one full end-to-end flow with a **GitHub private repository** first, so you do not accidentally sync sensitive configs into a public repo
+- On a machine that already has real configs, run install, initialization, and first push; confirm the remote repo contains the expected files
+- Validate restore behavior in a **clean environment**, such as a second machine, a container, or a temporary `HOME` directory
+- After restore succeeds on the second machine, modify `AGENTS.md`, `CLAUDE.md`, or one custom Skill, then run another push and pull to confirm two-way sync
+- Check that `env` in `settings.json`, plus `env` and `[projects.*]` in `config.toml`, stay local and are not uploaded to the remote repo
+- Trigger one auto-sync scenario and inspect `~/.cli-sync/auto-sync.log` to confirm there are no auth failures, divergence issues, or fast-forward failures
+
+Recommended minimum test matrix:
+
+- GitHub private repo + HTTPS
+- GitHub private repo + SSH
+- At least two environments: one “already configured” machine and one “clean” environment
 
 ---
 
