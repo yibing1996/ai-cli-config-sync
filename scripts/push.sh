@@ -148,7 +148,15 @@ if git diff --cached --quiet; then
 else
   COMMIT_MSG="sync: $(date '+%Y-%m-%d %H:%M:%S') from $(hostname)"
   git commit -m "$COMMIT_MSG"
-  git push "$REMOTE" "$BRANCH" 2>&1 || \
-    git push --set-upstream origin "$BRANCH"
+
+  if ! git push "$REMOTE" "$BRANCH"; then
+    echo "❌ 推送失败：未能将本地配置推送到远端"
+    echo "   请检查："
+    echo "   1) 远端地址是否正确：$REMOTE"
+    echo "   2) Git 认证、网络连接和仓库权限是否正常"
+    echo "   3) 远端是否已有新提交，若已领先请先执行拉取并处理差异"
+    exit 1
+  fi
+
   echo "🚀 配置已推送到 $REMOTE ($BRANCH)"
 fi

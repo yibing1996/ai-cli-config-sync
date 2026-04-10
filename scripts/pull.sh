@@ -92,10 +92,10 @@ _merge_settings_json() {
     fi
   # 有 python3 时
   elif command -v python3 &> /dev/null; then
-    python3 << PYEOF
+    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" python3 << 'PYEOF'
 import json, os
-remote = "$remote_file"
-local = "$local_file"
+remote = os.environ['REMOTE_FILE']
+local = os.environ['LOCAL_FILE']
 
 with open(local) as f:
     local_data = json.load(f)
@@ -130,11 +130,12 @@ _merge_config_toml() {
   fi
 
   if command -v python3 &> /dev/null; then
-    python3 << PYEOF
-import re, os
+    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" python3 << 'PYEOF'
+import os
+import re
 
-remote = "$remote_file"
-local = "$local_file"
+remote = os.environ['REMOTE_FILE']
+local = os.environ['LOCAL_FILE']
 
 # 从本地文件提取 [projects.*] 段和 env 行
 with open(local) as f:

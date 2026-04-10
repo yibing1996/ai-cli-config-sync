@@ -36,6 +36,18 @@ run_syntax_check() {
   bash -n install.sh uninstall.sh scripts/push.sh scripts/pull.sh
 }
 
+run_docs_consistency_check() {
+  log "检查文档中的安全同步语义"
+  assert_contains "$ROOT_DIR/README.md" '安全同步（先推送本地改动；失败即停）'
+  assert_not_contains "$ROOT_DIR/README.md" '先保守拉取，再推送'
+  assert_contains "$ROOT_DIR/README_EN.md" 'Safe sync (push local changes first; stop on failure)'
+  assert_not_contains "$ROOT_DIR/README_EN.md" 'safe pull first, then push'
+  assert_contains "$ROOT_DIR/skills/cli-config-sync/SKILL.md" '安全同步（先推送，失败即停）'
+  assert_not_contains "$ROOT_DIR/skills/cli-config-sync/SKILL.md" '先 pull 再 push'
+  assert_contains "$ROOT_DIR/skills/cli-config-sync-codex/SKILL.md" '安全同步（先推送，失败即停）'
+  assert_not_contains "$ROOT_DIR/skills/cli-config-sync-codex/SKILL.md" '先 pull 再 push'
+}
+
 run_install_smoke() {
   local tmpdir home
   tmpdir="$(mktemp -d)"
@@ -161,6 +173,58 @@ EOF
   rm -rf "$tmpdir"
 }
 
+run_pull_special_path_smoke() {
+  local tmpdir home remote merged
+  tmpdir="$(mktemp -d)"
+  home="$tmpdir/home\"quoted"
+  remote="$tmpdir/remote.git"
+
+  log "验证 pull.sh 在特殊路径下的 Python 合并逻辑"
+  git init --bare "$remote" >/dev/null 2>&1
+  git init "$tmpdir/src" >/dev/null 2>&1
+  git -C "$tmpdir/src" config user.name smoke-test
+  git -C "$tmpdir/src" config user.email smoke@example.com
+  mkdir -p "$tmpdir/src/codex"
+
+  cat > "$tmpdir/src/codex/config.toml" <<'EOF'
+ [model]
+ name = "gpt-5"
+   # env = { ... }  # 已过滤，请在本机手动配置
+EOF
+
+  git -C "$tmpdir/src" add codex/config.toml >/dev/null 2>&1
+  git -C "$tmpdir/src" commit -m "init" >/dev/null 2>&1
+  git -C "$tmpdir/src" branch -M main
+  git -C "$tmpdir/src" remote add origin "$remote"
+  git -C "$tmpdir/src" push origin main >/dev/null 2>&1
+  git --git-dir="$remote" symbolic-ref HEAD refs/heads/main
+
+  mkdir -p "$home/.cli-sync" "$home/.codex"
+  git clone "$remote" "$home/.cli-sync-repo" >/dev/null 2>&1
+
+  cat > "$home/.cli-sync/config.yml" <<EOF
+remote: $remote
+branch: main
+EOF
+
+  cat > "$home/.codex/config.toml" <<'EOF'
+ [model]
+   env = { OPENAI_API_KEY = "secret" }
+
+ [projects."/tmp/proj"]
+ trusted = true
+EOF
+
+  HOME="$home" bash "$ROOT_DIR/scripts/pull.sh" >/dev/null 2>&1
+
+  merged="$home/.codex/config.toml"
+  assert_contains "$merged" 'OPENAI_API_KEY'
+  assert_contains "$merged" '[projects."/tmp/proj"]'
+  assert_contains "$merged" 'name = "gpt-5"'
+
+  rm -rf "$tmpdir"
+}
+
 run_pull_diverge_smoke() {
   local tmpdir home remote stdout_file stderr_file
   tmpdir="$(mktemp -d)"
@@ -213,9 +277,11 @@ EOF
 
 main() {
   run_syntax_check
+  run_docs_consistency_check
   run_install_smoke
   run_push_filter_smoke
   run_pull_merge_smoke
+  run_pull_special_path_smoke
   run_pull_diverge_smoke
   log "✅ 所有 smoke test 通过"
 }

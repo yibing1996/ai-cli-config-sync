@@ -81,11 +81,14 @@ AI:  ✅ Setup complete, auto-detecting remote status and syncing...
 
 | You say | Action |
 |---|---|
-| `sync my configs` | Two-way sync (safe pull first, then push) |
+| `sync my configs` | Safe sync (push local changes first; stop on failure) |
 | `push configs` | Push local changes to remote |
 | `pull configs` | Pull remote configs to local |
 | `sync status` | Show which files have local changes |
 | `enable auto sync` | Set up shell hook for automatic sync |
+
+Note:
+To avoid deleting local-only Skills / Rules / Memories during a mirror-style pull, `sync my configs` now pushes local changes first. If the push fails, the flow stops instead of auto-pulling over your unpublished local files.
 
 ### New machine setup
 

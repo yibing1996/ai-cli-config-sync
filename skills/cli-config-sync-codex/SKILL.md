@@ -18,7 +18,7 @@ description: 将 AI CLI 工具（Codex CLI、Claude Code CLI、GitHub Copilot CL
 | 初始化配置同步 / setup config sync | Setup 初始化 |
 | 推送配置 / push configs / 同步到云端 | 推送到远程 |
 | 拉取配置 / pull configs / 从云端同步 | 从远程拉取 |
-| 同步配置 / sync my configs / sync CLI configs | 先 pull 再 push |
+| 同步配置 / sync my configs / sync CLI configs | 安全同步（先推送，失败即停） |
 | 开启自动同步 / enable auto sync | 配置 shell hook |
 | 同步状态 / sync status | 查看差异 |
 
@@ -232,7 +232,26 @@ bash "$HOME/.cli-sync/pull.sh"
 
 ---
 
-### 4. 自动同步设置
+### 4. Sync（安全同步）
+
+**触发**：「同步配置」「sync my configs」「sync CLI configs」
+
+**策略：先推送本地改动；如果推送失败则停止，不自动执行拉取，避免本地尚未推送的 Skill / Rule / Memory 被远端镜像删除。**
+
+```bash
+if bash "$HOME/.cli-sync/push.sh"; then
+  echo "✅ 已优先完成本地配置推送"
+  echo "ℹ️  如需恢复其他机器刚推送的配置，请先确认本机没有未推送的新文件，再手动执行「拉取配置」"
+else
+  echo "⚠️  已停止同步流程，未自动执行拉取"
+  echo "   建议先执行「同步状态」检查差异，再决定是否手动拉取"
+  exit 1
+fi
+```
+
+---
+
+### 5. 自动同步设置
 
 **触发**：「开启自动同步」「enable auto sync」
 
@@ -284,7 +303,7 @@ fi
 
 ---
 
-### 5. 查看同步状态
+### 6. 查看同步状态
 
 **触发**：「同步状态」「sync status」
 
@@ -328,7 +347,7 @@ done
 | `~/.cli-sync-repo` 不是有效 Git 仓库 | 备份后删除该目录，重新执行初始化 |
 | `git push` 认证失败 | 检查 SSH Key 或 Personal Access Token |
 | 自动 pull 失败 | 查看 `~/.cli-sync/auto-sync.log`，确认是否存在分叉、未提交变更或认证失败 |
-| 首次 push 失败（无 upstream）| 已自动尝试 `--set-upstream` |
+| 推送失败 | 检查远端地址、认证、网络和仓库权限；若远端已领先，先执行拉取并处理差异 |
 | merge 冲突 | `cd ~/.cli-sync-repo && git pull --rebase` 后手动解决 |
 | `jq` / `python3` 未安装 | `sudo apt install jq`（推荐）；否则 settings.json/config.toml 整体复制 |
 
