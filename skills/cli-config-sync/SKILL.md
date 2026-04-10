@@ -105,14 +105,14 @@ BRANCH="main"
 if [ "$(ls -A "$REPO_DIR" 2>/dev/null)" ]; then
   echo "仓库目录不为空，跳过初始化"
   BRANCH=$(git branch --show-current 2>/dev/null || echo "main")
-elif git ls-remote "$REMOTE_URL" HEAD > /dev/null 2>&1; then
-  # 远端有内容 → clone
+elif git ls-remote "$REMOTE_URL" HEAD 2>/dev/null | grep -q .; then
+  # 远端有内容（ls-remote 返回了 ref 信息）→ clone
   git clone "$REMOTE_URL" .
   BRANCH=$(git branch --show-current 2>/dev/null || echo "main")
   HAS_REMOTE_CONTENT=true
   echo "✅ 已 clone 远程仓库（分支：$BRANCH）"
 else
-  # 远端为空 → 初始化
+  # 远端为空或不可访问 → 初始化
   git init
   git remote add origin "$REMOTE_URL"
   # 尝试探测远端默认分支
@@ -132,8 +132,9 @@ auto_pull: false
 auto_push: false
 CONFIGEOF
 
-# 创建 .gitignore
-cat > "$REPO_DIR/.gitignore" << 'GITIGNEOF'
+# 创建 .gitignore（仅在不存在时创建，保留用户自定义规则）
+if [ ! -f "$REPO_DIR/.gitignore" ]; then
+  cat > "$REPO_DIR/.gitignore" << 'GITIGNEOF'
 # 认证文件（绝不同步）
 auth.json
 
@@ -162,6 +163,9 @@ file-history/
 claude/plugins/marketplaces/
 codex/vendor_imports/
 GITIGNEOF
+else
+  echo "ℹ️  .gitignore 已存在，保留现有内容"
+fi
 
 echo "✅ Setup 完成"
 ```

@@ -68,7 +68,7 @@ if [ -f "$PUSH_SH_SRC" ]; then
   chmod +x "$SCRIPTS_DIR/push.sh"
   ok "已安装 push.sh → $SCRIPTS_DIR/push.sh"
 else
-  warn "未找到 push.sh 源文件（将在首次 Setup 时由 Skill 生成）"
+  err "未找到 push.sh，安装中止（远程下载可能失败，请检查网络或手动 clone 项目后运行 install.sh）"
 fi
 
 if [ -f "$PULL_SH_SRC" ]; then
@@ -76,7 +76,7 @@ if [ -f "$PULL_SH_SRC" ]; then
   chmod +x "$SCRIPTS_DIR/pull.sh"
   ok "已安装 pull.sh → $SCRIPTS_DIR/pull.sh"
 else
-  warn "未找到 pull.sh 源文件（将在首次 Setup 时由 Skill 生成）"
+  err "未找到 pull.sh，安装中止（远程下载可能失败，请检查网络或手动 clone 项目后运行 install.sh）"
 fi
 
 # ── 检测并安装 Skill 到各 CLI ────────────────────────────────────────────────

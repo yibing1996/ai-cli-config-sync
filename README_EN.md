@@ -26,7 +26,9 @@ Then you switch machines... and it's all gone. 😩
 ```
 You: setup config sync
 AI:  Please provide your Git repository URL...
-     → configs restored automatically ✅
+     → Detects remote status automatically:
+       Has configs: pulls and restores ✅
+       Empty repo: pushes current configs ✅
 ```
 
 ---
@@ -61,7 +63,7 @@ After installation, use natural language in any supported CLI:
 You: setup config sync
 AI:  Please provide your Git repository URL (GitHub/Gitee supported):
 You: https://github.com/your-name/my-cli-configs
-AI:  ✅ Setup complete, running initial push...
+AI:  ✅ Setup complete, auto-detecting remote status and syncing...
 ```
 
 ### Daily use
@@ -145,8 +147,9 @@ The local Git working directory is at `~/.cli-sync-repo/`.
 
 - `bash` (required)
 - `git` (required)
-- `jq` or `python3` (recommended, for filtering `settings.json`)
+- `jq` or `python3` (recommended, for filtering sensitive fields in settings.json / config.toml, and smart merging on pull)
 - `rsync` (optional, for efficient directory sync; falls back to `cp`)
+- Git global identity (`git config --global user.name` and `user.email`)
 
 ---
 

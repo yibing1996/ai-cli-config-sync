@@ -26,7 +26,9 @@
 ```
 你说：初始化配置同步
 AI 说：请提供你的 Git 仓库地址...
-输入地址后，配置自动拉取完毕 ✅
+输入地址后，智能判断远端状态：
+  → 远端已有配置：自动拉取恢复 ✅
+  → 远端为空：首次推送当前配置 ✅
 ```
 
 ---
@@ -61,7 +63,7 @@ bash install.sh
 你：初始化配置同步
 AI：请提供你的 Git 仓库地址（支持 GitHub/Gitee）：
 你：https://github.com/your-name/my-cli-configs
-AI：✅ 初始化完成，正在执行首次推送...
+AI：✅ 初始化完成，智能判断远端状态后自动同步
 ```
 
 ### 日常使用
@@ -145,8 +147,9 @@ auto_push: false   # 设为 true：shell 退出时自动 push
 
 - `bash`（必须）
 - `git`（必须）
-- `jq` 或 `python3`（推荐，用于过滤 settings.json；否则 settings.json 整体同步）
+- `jq` 或 `python3`（推荐，用于过滤 settings.json / config.toml 敏感字段，以及 Pull 时智能合并）
 - `rsync`（可选，用于高效目录同步；无则自动降级为 cp）
+- Git 全局身份配置（`git config --global user.name` 和 `user.email`）
 
 ---
 

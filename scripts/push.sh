@@ -17,6 +17,16 @@ REMOTE=$(grep '^remote:' "$CONFIG_FILE" | sed 's/remote: *//')
 BRANCH=$(grep '^branch:' "$CONFIG_FILE" | sed 's/branch: *//' | tr -d '[:space:]')
 BRANCH=${BRANCH:-main}
 
+# ── 检查 Git 身份配置 ─────────────────────────────────────────────────────────
+GIT_NAME=$(git config user.name 2>/dev/null || true)
+GIT_EMAIL=$(git config user.email 2>/dev/null || true)
+if [ -z "$GIT_NAME" ] || [ -z "$GIT_EMAIL" ]; then
+  echo "❌ Git 身份未配置，请先运行："
+  echo "   git config --global user.name \"你的名字\""
+  echo "   git config --global user.email \"你的邮箱\""
+  exit 1
+fi
+
 echo "📦 收集配置文件..."
 
 # ── 目录镜像同步（含 --delete 保证删除也同步）────────────────────────────────
