@@ -9,7 +9,7 @@ description: 将 AI CLI 工具（Codex CLI、Claude Code CLI、GitHub Copilot CL
 
 将多个 AI CLI 工具的配置文件同步到 Git 仓库，实现跨机器配置共享。支持 GitHub、Gitee 等任意 Git 托管服务。
 
-> 本 Skill 与 GitHub Copilot CLI / Claude Code CLI 版本功能完全一致，仅在工具调用方式上适配 Codex CLI。
+> 本 Skill 与通用版工作流保持一致，仅在工具调用方式上适配 Codex CLI。
 
 ## 触发关键词
 
