@@ -84,7 +84,7 @@ fi
 1. 询问用户 Git 远程仓库地址（HTTPS 或 SSH 均可）
 2. 创建配置目录
 3. Clone 或初始化本地 Git 仓库
-4. **自动探测远端默认分支**（不写死 main）
+4. **自动探测远端默认分支或首个可用分支**（不写死 main）
 5. 写入配置文件
 6. 创建 `.gitignore`
 7. **智能判断**：远端有内容 → 先 Pull 恢复配置；远端为空 → 首次 Push
@@ -97,14 +97,20 @@ SCRIPTS_DIR="$HOME/.cli-sync"
 # 创建目录
 mkdir -p "$SCRIPTS_DIR" "$REPO_DIR"
 
-# Clone 或初始化
+# Clone、复用或初始化同步仓库
 cd "$REPO_DIR"
 HAS_REMOTE_CONTENT=false
 BRANCH="main"
 
 if [ "$(ls -A "$REPO_DIR" 2>/dev/null)" ]; then
-  echo "仓库目录不为空，跳过初始化"
-  BRANCH=$(git branch --show-current 2>/dev/null || echo "main")
+  if git -C "$REPO_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+    echo "检测到已有同步仓库，复用现有仓库"
+    BRANCH=$(git -C "$REPO_DIR" symbolic-ref --quiet --short HEAD 2>/dev/null || echo "main")
+  else
+    echo "❌ $REPO_DIR 已存在且非空，但不是有效 Git 仓库"
+    echo "   请备份后删除该目录，再重新初始化"
+    exit 1
+  fi
 else
   # 第一步：验证远端是否可访问
   if ! git ls-remote "$REMOTE_URL" &>/dev/null; then
@@ -117,18 +123,29 @@ else
   if git ls-remote --heads "$REMOTE_URL" 2>/dev/null | grep -q .; then
     # 远端有分支 → clone
     git clone "$REMOTE_URL" .
-    BRANCH=$(git branch --show-current 2>/dev/null || echo "main")
     HAS_REMOTE_CONTENT=true
+
+    # 优先使用远端默认分支；若远端 HEAD 未正确指向，再退回到首个可用分支
+    DEFAULT_BRANCH=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | sed 's/.*: //' || true)
+    if [ -z "$DEFAULT_BRANCH" ] || [ "$DEFAULT_BRANCH" = "(unknown)" ]; then
+      DEFAULT_BRANCH=$(git for-each-ref --format='%(refname:strip=3)' refs/remotes/origin | head -n 1)
+    fi
+
+    if [ -n "$DEFAULT_BRANCH" ]; then
+      BRANCH="$DEFAULT_BRANCH"
+      CURRENT_BRANCH=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+      if [ "$CURRENT_BRANCH" != "$BRANCH" ]; then
+        git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" "origin/$BRANCH"
+      fi
+    else
+      BRANCH=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || echo "main")
+    fi
+
     echo "✅ 已 clone 远程仓库（分支：$BRANCH）"
   else
     # 远端可访问但无分支（空仓库） → 本地初始化
     git init
     git remote add origin "$REMOTE_URL"
-    # 尝试探测远端默认分支
-    DEFAULT_BRANCH=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | sed 's/.*: //' || true)
-    if [ -n "$DEFAULT_BRANCH" ] && [ "$DEFAULT_BRANCH" != "(unknown)" ]; then
-      BRANCH="$DEFAULT_BRANCH"
-    fi
     git checkout -b "$BRANCH" 2>/dev/null || git branch -m "$BRANCH"
     echo "✅ 已初始化本地仓库（分支：$BRANCH）"
   fi
@@ -217,7 +234,7 @@ bash "$HOME/.cli-sync/pull.sh"
 
 **触发**：「开启自动同步」「enable auto sync」
 
-**注意：幂等写入，不会重复添加。**
+**注意：幂等写入，不会重复添加；自动拉取使用保守的 `fetch + ff-only` 策略，失败信息会写入日志。**
 
 ```bash
 # 检测 shell 类型
@@ -227,6 +244,8 @@ else
   SHELL_RC="$HOME/.bashrc"
 fi
 
+LOG_FILE="$HOME/.cli-sync/auto-sync.log"
+
 # 幂等检查：已存在则跳过
 if grep -q 'cli-config-sync-hook-start' "$SHELL_RC" 2>/dev/null; then
   echo "ℹ️  自动同步 hook 已存在于 $SHELL_RC，无需重复添加"
@@ -235,17 +254,21 @@ else
 
 # >>> cli-config-sync-hook-start >>>
 if [ -f "$HOME/.cli-sync/config.yml" ] && [ -f "$HOME/.cli-sync/pull.sh" ]; then
+  mkdir -p "$HOME/.cli-sync"
+  LOG_FILE="$HOME/.cli-sync/auto-sync.log"
   AUTO_PULL=$(grep 'auto_pull:' "$HOME/.cli-sync/config.yml" | grep -i 'true' || true)
   if [ -n "$AUTO_PULL" ]; then
-    (bash "$HOME/.cli-sync/pull.sh" > /dev/null 2>&1 &)
+    (bash "$HOME/.cli-sync/pull.sh" >> "$LOG_FILE" 2>&1 &)
   fi
 fi
 
 _cli_sync_push_on_exit() {
   if [ -f "$HOME/.cli-sync/config.yml" ]; then
+    mkdir -p "$HOME/.cli-sync"
+    LOG_FILE="$HOME/.cli-sync/auto-sync.log"
     AUTO_PUSH=$(grep 'auto_push:' "$HOME/.cli-sync/config.yml" | grep -i 'true' || true)
     if [ -n "$AUTO_PUSH" ] && [ -f "$HOME/.cli-sync/push.sh" ]; then
-      bash "$HOME/.cli-sync/push.sh" > /dev/null 2>&1
+      bash "$HOME/.cli-sync/push.sh" >> "$LOG_FILE" 2>&1 || true
     fi
   fi
 }
@@ -302,7 +325,9 @@ done
 | 错误 | 解决方法 |
 |---|---|
 | `push.sh 或 pull.sh 不存在` | 重新运行 install.sh 安装脚本 |
+| `~/.cli-sync-repo` 不是有效 Git 仓库 | 备份后删除该目录，重新执行初始化 |
 | `git push` 认证失败 | 检查 SSH Key 或 Personal Access Token |
+| 自动 pull 失败 | 查看 `~/.cli-sync/auto-sync.log`，确认是否存在分叉、未提交变更或认证失败 |
 | 首次 push 失败（无 upstream） | 已自动尝试 `--set-upstream` |
 | merge 冲突 | `cd ~/.cli-sync-repo && git pull --rebase` 后手动解决 |
 | `jq` / `python3` 未安装 | `sudo apt install jq`（推荐）；否则 settings.json/config.toml 整体复制 |

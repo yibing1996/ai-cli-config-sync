@@ -21,13 +21,39 @@ REMOTE=$(grep '^remote:' "$CONFIG_FILE" | sed 's/remote: *//')
 BRANCH=$(grep '^branch:' "$CONFIG_FILE" | sed 's/branch: *//' | tr -d '[:space:]')
 BRANCH=${BRANCH:-main}
 
-echo "🔄 从远程拉取配置..."
-cd "$REPO"
-if ! git pull "$REMOTE" "$BRANCH"; then
-  echo "❌ git pull 失败，请检查网络连接、远端地址或认证配置"
-  echo "   远端：$REMOTE  分支：$BRANCH"
+# ── 检查同步仓库是否有效 ─────────────────────────────────────────────────────
+if ! git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1; then
+  echo "❌ 同步仓库无效：$REPO"
+  echo "   请重新执行初始化，或删除 ~/.cli-sync-repo 后重新初始化"
   exit 1
 fi
+
+echo "🔄 从远程拉取配置..."
+cd "$REPO"
+
+# ── 保守同步 Git 历史：只允许快进，避免后台自动 pull 进入冲突态 ───────────────
+_sync_remote_branch() {
+  local remote="$1" branch="$2"
+
+  if ! git fetch "$remote" "$branch"; then
+    echo "❌ git fetch 失败，请检查网络连接、远端地址或认证配置"
+    echo "   远端：$remote  分支：$branch"
+    exit 1
+  fi
+
+  if [ -z "$(git rev-parse FETCH_HEAD 2>/dev/null || true)" ]; then
+    echo "ℹ️  远端分支 $branch 当前为空，无需同步 Git 提交"
+    return 0
+  fi
+
+  if ! git merge --ff-only FETCH_HEAD; then
+    echo "❌ 检测到同步仓库存在未提交变更、未推送提交或与远端分叉，已停止自动合并"
+    echo "   请先在 ~/.cli-sync-repo 中处理后，再重新执行拉取"
+    exit 1
+  fi
+}
+
+_sync_remote_branch "$REMOTE" "$BRANCH"
 
 echo "📋 还原配置文件..."
 
@@ -120,11 +146,11 @@ current_section = ""
 in_projects = False
 
 for line in local_lines:
-    if re.match(r'^\[projects\.', line):
+    if re.match(r'^\s*\[projects\.', line):
         in_projects = True
         local_projects.append(line)
         continue
-    if re.match(r'^\[', line):
+    if re.match(r'^\s*\[', line):
         if in_projects:
             in_projects = False
         current_section = line.strip()
@@ -141,7 +167,7 @@ with open(remote) as f:
 result = []
 current_section = ""
 for line in remote_lines:
-    if re.match(r'^\[', line):
+    if re.match(r'^\s*\[', line):
         current_section = line.strip()
     # 如果远端的 env 被注释掉了，尝试用本机的 env 还原（允许前导空白/缩进）
     if re.match(r'^\s*#\s*env\s*=\s*\{.*已过滤', line):

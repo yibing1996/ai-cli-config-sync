@@ -38,18 +38,20 @@ AI:  Please provide your Git repository URL...
 ### Option 1: One-line install (recommended)
 
 ```bash
+# Replace YOUR_USERNAME with your actual GitHub user or org name
 bash <(curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/cli-config-sync/main/install.sh)
 ```
 
 ### Option 2: Clone and install
 
 ```bash
+# Replace YOUR_USERNAME with your actual GitHub user or org name
 git clone https://github.com/YOUR_USERNAME/cli-config-sync.git
 cd cli-config-sync
 bash install.sh
 ```
 
-The script auto-detects which CLI tools are installed and installs the appropriate Skill for each.
+The installer sets up the core scripts and writes the Skill into `~/.claude` / `~/.codex`; missing directories are created automatically.
 
 ---
 
@@ -70,7 +72,7 @@ AI:  ✅ Setup complete, auto-detecting remote status and syncing...
 
 | You say | Action |
 |---|---|
-| `sync my configs` | Two-way sync (pull then push) |
+| `sync my configs` | Two-way sync (safe pull first, then push) |
 | `push configs` | Push local changes to remote |
 | `pull configs` | Pull remote configs to local |
 | `sync status` | Show which files have local changes |
@@ -150,6 +152,10 @@ The local Git working directory is at `~/.cli-sync-repo/`.
 - `jq` or `python3` (recommended, for filtering sensitive fields in settings.json / config.toml, and smart merging on pull)
 - `rsync` (optional, for efficient directory sync; falls back to `cp`)
 - Git global identity (`git config --global user.name` and `user.email`)
+
+Auto-sync notes:
+- Startup auto-pull uses a conservative `fetch + ff-only` strategy; if the repo has diverged or has local pending changes, it stops instead of creating a merge state silently
+- Auto-sync logs are written to `~/.cli-sync/auto-sync.log`
 
 ---
 

@@ -115,11 +115,7 @@ INSTALLED=$((INSTALLED + 1))
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-if [ $INSTALLED -eq 0 ]; then
-  err "未检测到任何支持的 CLI 工具，请先安装 GitHub Copilot CLI / Claude Code CLI / Codex CLI"
-fi
-
-ok "安装完成！共安装到 $INSTALLED 个 CLI"
+ok "安装完成！共安装 $INSTALLED 份 Skill 配置"
 echo ""
 echo "📦 核心脚本：$SCRIPTS_DIR/push.sh, $SCRIPTS_DIR/pull.sh"
 echo ""

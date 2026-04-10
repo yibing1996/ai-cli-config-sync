@@ -38,18 +38,20 @@ AI 说：请提供你的 Git 仓库地址...
 ### 方法一：一行命令安装（推荐）
 
 ```bash
+# 请将 YOUR_USERNAME 替换为实际 GitHub 用户名或组织名
 bash <(curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/cli-config-sync/main/install.sh)
 ```
 
 ### 方法二：clone 后安装
 
 ```bash
+# 请将 YOUR_USERNAME 替换为实际 GitHub 用户名或组织名
 git clone https://github.com/YOUR_USERNAME/cli-config-sync.git
 cd cli-config-sync
 bash install.sh
 ```
 
-安装脚本会自动检测你安装了哪些 CLI 工具，并分别安装对应版本的 Skill。
+安装脚本会安装核心脚本，并在 `~/.claude` / `~/.codex` 下写入 Skill；目录不存在时会自动创建。
 
 ---
 
@@ -70,7 +72,7 @@ AI：✅ 初始化完成，智能判断远端状态后自动同步
 
 | 你说 | 效果 |
 |---|---|
-| `同步配置` | 双向同步（pull 后 push） |
+| `同步配置` | 双向同步（先保守拉取，再推送） |
 | `推送配置` | 将本地改动推到云端 |
 | `拉取配置` | 从云端同步到本地 |
 | `同步状态` | 查看哪些文件有本地修改 |
@@ -150,6 +152,10 @@ auto_push: false   # 设为 true：shell 退出时自动 push
 - `jq` 或 `python3`（推荐，用于过滤 settings.json / config.toml 敏感字段，以及 Pull 时智能合并）
 - `rsync`（可选，用于高效目录同步；无则自动降级为 cp）
 - Git 全局身份配置（`git config --global user.name` 和 `user.email`）
+
+自动同步说明：
+- 启动时自动拉取使用保守的 `fetch + ff-only` 策略，检测到分叉或未提交变更时会停止，不会静默制造 merge 状态
+- 自动同步日志默认写入 `~/.cli-sync/auto-sync.log`
 
 ---
 

@@ -17,6 +17,13 @@ REMOTE=$(grep '^remote:' "$CONFIG_FILE" | sed 's/remote: *//')
 BRANCH=$(grep '^branch:' "$CONFIG_FILE" | sed 's/branch: *//' | tr -d '[:space:]')
 BRANCH=${BRANCH:-main}
 
+# ── 检查同步仓库是否有效 ─────────────────────────────────────────────────────
+if ! git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1; then
+  echo "❌ 同步仓库无效：$REPO"
+  echo "   请重新执行初始化，或删除 ~/.cli-sync-repo 后重新初始化"
+  exit 1
+fi
+
 # ── 检查 Git 身份配置（在同步仓库上下文中检查）──────────────────────────────
 GIT_NAME=$(git -C "$REPO" config user.name 2>/dev/null || true)
 GIT_EMAIL=$(git -C "$REPO" config user.email 2>/dev/null || true)
@@ -100,11 +107,11 @@ result = []
 skip_section = False
 for line in lines:
     # 跳过 [projects.*] 段（含本机绝对路径和信任配置）
-    if re.match(r'^\[projects\.', line):
+    if re.match(r'^\s*\[projects\.', line):
         skip_section = True
         continue
     # 遇到新的非 projects 段，恢复正常
-    if re.match(r'^\[(?!projects\.)', line):
+    if re.match(r'^\s*\[(?!projects\.)', line):
         skip_section = False
     if skip_section:
         continue
