@@ -6,6 +6,8 @@ REPO="$HOME/.cli-sync-repo"
 TMP_DIR="$(mktemp -d)"
 PYTHON_CMD=()
 PYTHON_CMD_CHECKED=0
+NODE_CMD=()
+NODE_CMD_CHECKED=0
 
 cleanup() {
   rm -rf "$TMP_DIR"
@@ -45,11 +47,82 @@ PYEOF
 
 _run_python() {
   _detect_python || return 1
+  _export_runtime_context
   "${PYTHON_CMD[@]}" "$@"
 }
 
+_export_runtime_context() {
+  local name
+  for name in SRC DST REMOTE_FILE LOCAL_FILE KIND OUT_FILE; do
+    if [ "${!name+x}" = "x" ]; then
+      export "$name"
+    fi
+  done
+}
+
+_is_windows_posix_shell() {
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+_detect_node() {
+  if [ "$NODE_CMD_CHECKED" -eq 1 ]; then
+    [ "${#NODE_CMD[@]}" -gt 0 ]
+    return
+  fi
+
+  NODE_CMD_CHECKED=1
+
+  if command -v node >/dev/null 2>&1 && node --version >/dev/null 2>&1; then
+    NODE_CMD=("node")
+    return 0
+  fi
+
+  if _is_windows_posix_shell && command -v node.exe >/dev/null 2>&1 && node.exe --version >/dev/null 2>&1; then
+    NODE_CMD=("node.exe")
+    return 0
+  fi
+
+  NODE_CMD=()
+  return 1
+}
+
+_run_node() {
+  _detect_node || return 1
+  _export_runtime_context
+  "${NODE_CMD[@]}" "$@"
+}
+
 _has_node() {
-  command -v node >/dev/null 2>&1
+  _detect_node
+}
+
+_node_path_arg() {
+  local path="$1"
+  if [ "${#NODE_CMD[@]}" -gt 0 ] && [ "${NODE_CMD[0]}" = "node.exe" ] && command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$path"
+  else
+    printf '%s\n' "$path"
+  fi
+}
+
+_strip_utf8_bom() {
+  local src="$1" dst="$2"
+  LC_ALL=C sed $'1s/^\xEF\xBB\xBF//' "$src" > "$dst"
+}
+
+_files_differ_ignoring_bom_and_cr() {
+  local left="$1" right="$2"
+  local normalized_left normalized_right
+
+  normalized_left="$(mktemp "$TMP_DIR/left.XXXXXX")"
+  normalized_right="$(mktemp "$TMP_DIR/right.XXXXXX")"
+  _strip_utf8_bom "$left" "$normalized_left"
+  _strip_utf8_bom "$right" "$normalized_right"
+
+  ! diff --strip-trailing-cr -q "$normalized_left" "$normalized_right" > /dev/null 2>&1
 }
 
 _sanitized_diff() {
@@ -57,7 +130,7 @@ _sanitized_diff() {
   [ -f "$local_file" ] && [ -f "$repo_file" ] || return 1
 
   if _detect_python; then
-    KIND="$kind" LOCAL_FILE="$local_file" OUT_FILE="$out_file" _run_python << 'PYEOF'
+    env KIND="$kind" LOCAL_FILE="$local_file" OUT_FILE="$out_file" "${PYTHON_CMD[@]}" << 'PYEOF'
 import json
 import os
 import re
@@ -112,15 +185,17 @@ else:
     raise SystemExit(f'unknown kind: {kind}')
 PYEOF
   elif _has_node; then
-    KIND="$kind" LOCAL_FILE="$local_file" OUT_FILE="$out_file" node << 'JSEOF'
+    local node_local_file node_out_file
+    node_local_file=$(_node_path_arg "$local_file")
+    node_out_file=$(_node_path_arg "$out_file")
+    "${NODE_CMD[@]}" - "$kind" "$node_local_file" "$node_out_file" << 'JSEOF'
 const fs = require('fs');
+const readText = (path) => fs.readFileSync(path, 'utf8').replace(/^\uFEFF/, '');
 
-const kind = process.env.KIND;
-const localFile = process.env.LOCAL_FILE;
-const outFile = process.env.OUT_FILE;
+const [, , kind, localFile, outFile] = process.argv;
 
 if (kind === 'copilot-config') {
-  const data = JSON.parse(fs.readFileSync(localFile, 'utf8'));
+  const data = JSON.parse(readText(localFile));
   const result = {};
   for (const key of ['banner', 'model']) {
     if (Object.prototype.hasOwnProperty.call(data, key)) {
@@ -129,7 +204,7 @@ if (kind === 'copilot-config') {
   }
   fs.writeFileSync(outFile, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
 } else if (kind === 'copilot-mcp') {
-  const data = JSON.parse(fs.readFileSync(localFile, 'utf8'));
+  const data = JSON.parse(readText(localFile));
   const result = JSON.parse(JSON.stringify(data));
   const servers = result.mcpServers;
   if (servers && typeof servers === 'object' && !Array.isArray(servers)) {
@@ -141,7 +216,7 @@ if (kind === 'copilot-config') {
   }
   fs.writeFileSync(outFile, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
 } else if (kind === 'codex-config') {
-  const rawLines = fs.readFileSync(localFile, 'utf8').replace(/\r\n/g, '\n').split('\n');
+  const rawLines = readText(localFile).replace(/\r\n/g, '\n').split('\n');
   if (rawLines.length > 0 && rawLines[rawLines.length - 1] === '') {
     rawLines.pop();
   }
@@ -177,7 +252,12 @@ JSEOF
     return 1
   fi
 
-  ! diff --strip-trailing-cr -q "$out_file" "$repo_file" > /dev/null 2>&1
+  local normalized_local="$out_file.local"
+  local normalized_repo="$out_file.repo"
+  _strip_utf8_bom "$out_file" "$normalized_local"
+  _strip_utf8_bom "$repo_file" "$normalized_repo"
+
+  ! diff --strip-trailing-cr -q "$normalized_local" "$normalized_repo" > /dev/null 2>&1
 }
 
 echo "=== Git 状态 ==="
@@ -193,7 +273,7 @@ CHANGED=0
 
 for f in copilot-instructions.md; do
   if [ -f "$HOME/.copilot/$f" ] && [ -f "$REPO/copilot/$f" ]; then
-    if ! diff --strip-trailing-cr -q "$HOME/.copilot/$f" "$REPO/copilot/$f" > /dev/null 2>&1; then
+    if _files_differ_ignoring_bom_and_cr "$HOME/.copilot/$f" "$REPO/copilot/$f"; then
       echo "  📝 copilot/$f 有本地未推送的修改"
       CHANGED=1
     fi
@@ -212,7 +292,7 @@ fi
 
 for f in CLAUDE.md; do
   if [ -f "$HOME/.claude/$f" ] && [ -f "$REPO/claude/$f" ]; then
-    if ! diff --strip-trailing-cr -q "$HOME/.claude/$f" "$REPO/claude/$f" > /dev/null 2>&1; then
+    if _files_differ_ignoring_bom_and_cr "$HOME/.claude/$f" "$REPO/claude/$f"; then
       echo "  📝 claude/$f 有本地未推送的修改"
       CHANGED=1
     fi
@@ -221,7 +301,7 @@ done
 
 for f in AGENTS.md; do
   if [ -f "$HOME/.codex/$f" ] && [ -f "$REPO/codex/$f" ]; then
-    if ! diff --strip-trailing-cr -q "$HOME/.codex/$f" "$REPO/codex/$f" > /dev/null 2>&1; then
+    if _files_differ_ignoring_bom_and_cr "$HOME/.codex/$f" "$REPO/codex/$f"; then
       echo "  📝 codex/$f 有本地未推送的修改"
       CHANGED=1
     fi

@@ -14,6 +14,27 @@ fail() {
   exit 1
 }
 
+has_node() {
+  command -v node >/dev/null 2>&1 || (is_windows_git_bash && command -v node.exe >/dev/null 2>&1)
+}
+
+is_windows_git_bash() {
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+make_tmpdir() {
+  if is_windows_git_bash; then
+    local tmp_root="$ROOT_DIR/.git/.tmp-smoke"
+    mkdir -p "$tmp_root"
+    mktemp -d "$tmp_root/case.XXXXXX"
+  else
+    mktemp -d
+  fi
+}
+
 assert_file() {
   [ -f "$1" ] || fail "缺少文件：$1"
 }
@@ -85,7 +106,7 @@ run_docs_consistency_check() {
 
 run_install_smoke() {
   local tmpdir home
-  tmpdir="$(mktemp -d)"
+  tmpdir="$(make_tmpdir)"
   home="$tmpdir/home"
 
   log "验证 install.sh 在临时 HOME 下可用"
@@ -112,7 +133,7 @@ run_install_smoke() {
 
 run_push_filter_smoke() {
   local tmpdir home remote filtered
-  tmpdir="$(mktemp -d)"
+  tmpdir="$(make_tmpdir)"
   home="$tmpdir/home"
   remote="$tmpdir/remote.git"
 
@@ -152,7 +173,7 @@ EOF
 
 run_copilot_push_filter_smoke() {
   local tmpdir home remote filtered_config filtered_mcp
-  tmpdir="$(mktemp -d)"
+  tmpdir="$(make_tmpdir)"
   home="$tmpdir/home"
   remote="$tmpdir/remote.git"
 
@@ -231,12 +252,15 @@ EOF
 
 run_copilot_push_node_fallback_smoke() {
   local tmpdir home remote fakebin filtered_config filtered_mcp
-  tmpdir="$(mktemp -d)"
+  tmpdir="$(make_tmpdir)"
   home="$tmpdir/home"
   remote="$tmpdir/remote.git"
   fakebin="$tmpdir/fakebin"
 
-  command -v node >/dev/null 2>&1 || fail "未找到 node，无法执行 Node fallback smoke test"
+  if ! has_node; then
+    log "跳过 push.sh 的 Node fallback smoke test（当前运行时未找到可用 node）"
+    return 0
+  fi
   write_broken_python_shims "$fakebin"
 
   log "验证 push.sh 在 Python 不可用时会回退到 node"
@@ -296,7 +320,7 @@ EOF
 
 run_pull_merge_smoke() {
   local tmpdir home remote merged settings
-  tmpdir="$(mktemp -d)"
+  tmpdir="$(make_tmpdir)"
   home="$tmpdir/home"
   remote="$tmpdir/remote.git"
 
@@ -365,7 +389,7 @@ EOF
 
 run_copilot_pull_merge_smoke() {
   local tmpdir home remote merged_config merged_mcp
-  tmpdir="$(mktemp -d)"
+  tmpdir="$(make_tmpdir)"
   home="$tmpdir/home"
   remote="$tmpdir/remote.git"
 
@@ -473,12 +497,15 @@ EOF
 
 run_copilot_pull_node_fallback_smoke() {
   local tmpdir home remote fakebin merged_config merged_mcp
-  tmpdir="$(mktemp -d)"
+  tmpdir="$(make_tmpdir)"
   home="$tmpdir/home"
   remote="$tmpdir/remote.git"
   fakebin="$tmpdir/fakebin"
 
-  command -v node >/dev/null 2>&1 || fail "未找到 node，无法执行 Node fallback smoke test"
+  if ! has_node; then
+    log "跳过 pull.sh 的 Node fallback smoke test（当前运行时未找到可用 node）"
+    return 0
+  fi
   write_broken_python_shims "$fakebin"
 
   log "验证 pull.sh 在 Python 不可用时会回退到 node"
@@ -573,7 +600,7 @@ EOF
 
 run_pull_special_path_smoke() {
   local tmpdir home remote merged
-  tmpdir="$(mktemp -d)"
+  tmpdir="$(make_tmpdir)"
   home="$tmpdir/home spaced dir"
   remote="$tmpdir/remote.git"
 
@@ -625,7 +652,7 @@ EOF
 
 run_pull_diverge_smoke() {
   local tmpdir home remote stdout_file stderr_file
-  tmpdir="$(mktemp -d)"
+  tmpdir="$(make_tmpdir)"
   home="$tmpdir/home"
   remote="$tmpdir/remote.git"
   stdout_file="$tmpdir/pull.stdout"
@@ -675,7 +702,7 @@ EOF
 
 run_setup_existing_repo_prefers_pull_smoke() {
   local tmpdir home remote result_file
-  tmpdir="$(mktemp -d)"
+  tmpdir="$(make_tmpdir)"
   home="$tmpdir/home"
   remote="$tmpdir/remote.git"
   result_file="$home/result.txt"
@@ -717,12 +744,15 @@ EOF
 
 run_status_crlf_node_fallback_smoke() {
   local tmpdir home fakebin output_file
-  tmpdir="$(mktemp -d)"
+  tmpdir="$(make_tmpdir)"
   home="$tmpdir/home"
   fakebin="$tmpdir/fakebin"
   output_file="$tmpdir/status.out"
 
-  command -v node >/dev/null 2>&1 || fail "未找到 node，无法执行 Node fallback smoke test"
+  if ! has_node; then
+    log "跳过 status.sh 的 Node fallback smoke test（当前运行时未找到可用 node）"
+    return 0
+  fi
   write_broken_python_shims "$fakebin"
 
   log "验证 status.sh 在 CRLF 差异和 Python 不可用时不会误报"

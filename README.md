@@ -69,13 +69,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "$tmp"
 **Windows cmd：**
 
 ```cmd
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$tmp = Join-Path $env:TEMP 'ai-cli-config-sync-install.ps1'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.ps1' -OutFile $tmp; powershell -NoProfile -ExecutionPolicy Bypass -File `"$tmp`""
+set "AI_CLI_SYNC_INSTALL_PS1=%TEMP%\ai-cli-config-sync-install.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.ps1' -OutFile '%AI_CLI_SYNC_INSTALL_PS1%'"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%AI_CLI_SYNC_INSTALL_PS1%"
 ```
 
 说明：
 
 - 单独执行 `curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh` 只会把脚本内容打印到终端，不会自动安装
 - Windows 原生终端推荐走 `install.ps1`；它会自动定位 **Git for Windows 自带的 Git Bash**，避免误用 `C:\Windows\System32\bash.exe` 把流程送进 WSL
+- 下载版 `install.ps1` 会先通过 PowerShell 补齐完整安装 payload，再交给 Git Bash 执行，因此不依赖 Bash 侧再去额外下载脚本
 - 如果当前 PowerShell 会话启用了脚本执行限制，请用 `powershell -NoProfile -ExecutionPolicy Bypass -File $tmp` 启动下载后的安装脚本，而不要直接 `& $tmp`
 - 如果你只想确认 Git 的实际路径，可以在 `cmd` 中执行 `where git`，或在 PowerShell 中执行 `(Get-Command git).Source`
 - 如果你在 **WSL** 中执行，配置会安装到 WSL 自己的 `~/.claude` / `~/.codex` / `~/.copilot`，不会写入 Windows 本机用户目录
@@ -260,6 +263,24 @@ bash scripts/dev-smoke-test.sh
 - `push.sh` 是否会过滤 Claude / Codex / Copilot 的敏感字段
 - `pull.sh` 是否会保留本机私有字段（含 Copilot 登录态和 MCP env）
 - `pull.sh` 在仓库分叉时是否会安全停止
+
+如果你要在 **Windows 原生终端（PowerShell / cmd）** 下验证安装与 `.ps1` 包装脚本链路，建议额外运行：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-windows-smoke-test.ps1
+```
+
+这个脚本会在临时用户目录下逐项验证：
+
+- PowerShell / cmd 的安装方式
+- `setup.ps1`、`push.ps1`、`pull.ps1`、`sync.ps1`、`status.ps1`、`enable-auto-sync.ps1`
+- Windows 下的 Python 占位符回退与 CRLF 差异场景
+
+如果你还想额外 spot check 当前 GitHub 公开安装命令，也可以再执行一次：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-windows-smoke-test.ps1 -UseRemoteDownload
+```
 
 ---
 

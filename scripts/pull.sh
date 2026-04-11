@@ -26,6 +26,8 @@ BRANCH=${BRANCH:-main}
 
 PYTHON_CMD=()
 PYTHON_CMD_CHECKED=0
+NODE_CMD=()
+NODE_CMD_CHECKED=0
 
 _detect_python() {
   if [ "$PYTHON_CMD_CHECKED" -eq 1 ]; then
@@ -60,11 +62,65 @@ PYEOF
 
 _run_python() {
   _detect_python || return 1
+  _export_runtime_context
   "${PYTHON_CMD[@]}" "$@"
 }
 
+_export_runtime_context() {
+  local name
+  for name in SRC DST REMOTE_FILE LOCAL_FILE KIND OUT_FILE; do
+    if [ "${!name+x}" = "x" ]; then
+      export "$name"
+    fi
+  done
+}
+
+_is_windows_posix_shell() {
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+_detect_node() {
+  if [ "$NODE_CMD_CHECKED" -eq 1 ]; then
+    [ "${#NODE_CMD[@]}" -gt 0 ]
+    return
+  fi
+
+  NODE_CMD_CHECKED=1
+
+  if command -v node >/dev/null 2>&1 && node --version >/dev/null 2>&1; then
+    NODE_CMD=("node")
+    return 0
+  fi
+
+  if _is_windows_posix_shell && command -v node.exe >/dev/null 2>&1 && node.exe --version >/dev/null 2>&1; then
+    NODE_CMD=("node.exe")
+    return 0
+  fi
+
+  NODE_CMD=()
+  return 1
+}
+
+_run_node() {
+  _detect_node || return 1
+  _export_runtime_context
+  "${NODE_CMD[@]}" "$@"
+}
+
 _has_node() {
-  command -v node >/dev/null 2>&1
+  _detect_node
+}
+
+_node_path_arg() {
+  local path="$1"
+  if [ "${#NODE_CMD[@]}" -gt 0 ] && [ "${NODE_CMD[0]}" = "node.exe" ] && command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$path"
+  else
+    printf '%s\n' "$path"
+  fi
 }
 
 # ── 检查同步仓库是否有效 ─────────────────────────────────────────────────────
@@ -137,7 +193,7 @@ _merge_settings_json() {
       cp "$remote_file" "$local_file"
     fi
   elif _detect_python; then
-    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" _run_python << 'PYEOF'
+    env REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" "${PYTHON_CMD[@]}" << 'PYEOF'
 import json, os
 remote = os.environ['REMOTE_FILE']
 local = os.environ['LOCAL_FILE']
@@ -157,13 +213,16 @@ with open(local, 'w') as f:
     json.dump(result, f, indent=2, ensure_ascii=False)
 PYEOF
   elif _has_node; then
-    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" node << 'JSEOF'
+    local node_remote node_local
+    node_remote=$(_node_path_arg "$remote_file")
+    node_local=$(_node_path_arg "$local_file")
+    "${NODE_CMD[@]}" - "$node_remote" "$node_local" << 'JSEOF'
 const fs = require('fs');
+const readText = (path) => fs.readFileSync(path, 'utf8').replace(/^\uFEFF/, '');
 
-const remote = process.env.REMOTE_FILE;
-const local = process.env.LOCAL_FILE;
-const localData = JSON.parse(fs.readFileSync(local, 'utf8'));
-const remoteData = JSON.parse(fs.readFileSync(remote, 'utf8'));
+const [, , remote, local] = process.argv;
+const localData = JSON.parse(readText(local));
+const remoteData = JSON.parse(readText(remote));
 const result = { ...remoteData };
 
 if (localData.env !== undefined && localData.env !== null) {
@@ -190,7 +249,7 @@ _merge_config_toml() {
   fi
 
   if _detect_python; then
-    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" _run_python << 'PYEOF'
+    env REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" "${PYTHON_CMD[@]}" << 'PYEOF'
 import os
 import re
 
@@ -247,12 +306,15 @@ with open(local, 'w') as f:
     f.write(content)
 PYEOF
   elif _has_node; then
-    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" node << 'JSEOF'
+    local node_remote node_local
+    node_remote=$(_node_path_arg "$remote_file")
+    node_local=$(_node_path_arg "$local_file")
+    "${NODE_CMD[@]}" - "$node_remote" "$node_local" << 'JSEOF'
 const fs = require('fs');
+const readText = (path) => fs.readFileSync(path, 'utf8').replace(/^\uFEFF/, '');
 
-const remote = process.env.REMOTE_FILE;
-const local = process.env.LOCAL_FILE;
-const localLines = fs.readFileSync(local, 'utf8').replace(/\r\n/g, '\n').split('\n');
+const [, , remote, local] = process.argv;
+const localLines = readText(local).replace(/\r\n/g, '\n').split('\n');
 if (localLines.length > 0 && localLines[localLines.length - 1] === '') {
   localLines.pop();
 }
@@ -284,7 +346,7 @@ for (const rawLine of localLines) {
   }
 }
 
-const remoteLines = fs.readFileSync(remote, 'utf8').replace(/\r\n/g, '\n').split('\n');
+const remoteLines = readText(remote).replace(/\r\n/g, '\n').split('\n');
 if (remoteLines.length > 0 && remoteLines[remoteLines.length - 1] === '') {
   remoteLines.pop();
 }
@@ -328,7 +390,7 @@ _merge_copilot_config_json() {
   fi
 
   if _detect_python; then
-    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" _run_python << 'PYEOF'
+    env REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" "${PYTHON_CMD[@]}" << 'PYEOF'
 import json
 import os
 
@@ -356,13 +418,16 @@ with open(local, 'w') as f:
     f.write('\n')
 PYEOF
   elif _has_node; then
-    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" node << 'JSEOF'
+    local node_remote node_local
+    node_remote=$(_node_path_arg "$remote_file")
+    node_local=$(_node_path_arg "$local_file")
+    "${NODE_CMD[@]}" - "$node_remote" "$node_local" << 'JSEOF'
 const fs = require('fs');
+const readText = (path) => fs.readFileSync(path, 'utf8').replace(/^\uFEFF/, '');
 
-const remote = process.env.REMOTE_FILE;
-const local = process.env.LOCAL_FILE;
-const localData = JSON.parse(fs.readFileSync(local, 'utf8'));
-const remoteData = JSON.parse(fs.readFileSync(remote, 'utf8'));
+const [, , remote, local] = process.argv;
+const localData = JSON.parse(readText(local));
+const remoteData = JSON.parse(readText(remote));
 const result = { ...remoteData };
 
 for (const key of [
@@ -396,7 +461,7 @@ _merge_copilot_mcp_json() {
   fi
 
   if _detect_python; then
-    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" _run_python << 'PYEOF'
+    env REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" "${PYTHON_CMD[@]}" << 'PYEOF'
 import json
 import os
 
@@ -433,13 +498,16 @@ with open(local, 'w') as f:
     f.write('\n')
 PYEOF
   elif _has_node; then
-    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" node << 'JSEOF'
+    local node_remote node_local
+    node_remote=$(_node_path_arg "$remote_file")
+    node_local=$(_node_path_arg "$local_file")
+    "${NODE_CMD[@]}" - "$node_remote" "$node_local" << 'JSEOF'
 const fs = require('fs');
+const readText = (path) => fs.readFileSync(path, 'utf8').replace(/^\uFEFF/, '');
 
-const remote = process.env.REMOTE_FILE;
-const local = process.env.LOCAL_FILE;
-const localData = JSON.parse(fs.readFileSync(local, 'utf8'));
-const remoteData = JSON.parse(fs.readFileSync(remote, 'utf8'));
+const [, , remote, local] = process.argv;
+const localData = JSON.parse(readText(local));
+const remoteData = JSON.parse(readText(remote));
 const result = JSON.parse(JSON.stringify(remoteData));
 const localServers = localData.mcpServers;
 

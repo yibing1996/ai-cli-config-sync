@@ -13,3 +13,18 @@ jobs:
 
       - name: Run smoke test
         run: bash scripts/dev-smoke-test.sh
+
+  windows-smoke-test:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run Windows smoke test
+        shell: powershell
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-windows-smoke-test.ps1

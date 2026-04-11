@@ -69,13 +69,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "$tmp"
 **Windows cmd:**
 
 ```cmd
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$tmp = Join-Path $env:TEMP 'ai-cli-config-sync-install.ps1'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.ps1' -OutFile $tmp; powershell -NoProfile -ExecutionPolicy Bypass -File `"$tmp`""
+set "AI_CLI_SYNC_INSTALL_PS1=%TEMP%\ai-cli-config-sync-install.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.ps1' -OutFile '%AI_CLI_SYNC_INSTALL_PS1%'"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%AI_CLI_SYNC_INSTALL_PS1%"
 ```
 
 Notes:
 
 - Running `curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh` by itself only prints the script contents; it does not install anything
 - Native Windows shells should use `install.ps1`; it resolves **Git for Windows' Git Bash** automatically and avoids accidentally going through `C:\Windows\System32\bash.exe` into WSL
+- The downloaded `install.ps1` stages the full install payload through PowerShell before invoking Git Bash, so native Windows shells do not depend on extra Bash-side downloads
 - If the current PowerShell session blocks script execution, launch the downloaded installer with `powershell -NoProfile -ExecutionPolicy Bypass -File $tmp` instead of running `& $tmp` directly
 - If you only want to inspect the detected Git path first, run `where git` from `cmd` or `(Get-Command git).Source` from PowerShell
 - If you run the installer inside **WSL**, configs are installed into WSL's own `~/.claude` / `~/.codex` / `~/.copilot`, not your Windows user profile
@@ -260,6 +263,24 @@ The script checks:
 - Whether `push.sh` filters Claude / Codex / Copilot sensitive fields
 - Whether `pull.sh` preserves machine-local private fields, including Copilot login state and MCP env
 - Whether `pull.sh` stops safely when the sync repo has diverged
+
+If you want to validate the install flow and `.ps1` wrappers in **native Windows terminals (PowerShell / cmd)**, also run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-windows-smoke-test.ps1
+```
+
+That script verifies these flows inside temporary Windows user profiles:
+
+- PowerShell and cmd install paths
+- `setup.ps1`, `push.ps1`, `pull.ps1`, `sync.ps1`, `status.ps1`, and `enable-auto-sync.ps1`
+- The Windows Python launcher fallback and CRLF diff scenarios
+
+If you also want one extra spot check against the published GitHub raw installer, run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-windows-smoke-test.ps1 -UseRemoteDownload
+```
 
 ---
 

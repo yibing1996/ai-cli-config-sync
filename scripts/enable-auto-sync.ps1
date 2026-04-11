@@ -1,18 +1,31 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$profileDir = Split-Path -Parent $PROFILE
+$targetProfile = $PROFILE
+if ([string]::IsNullOrWhiteSpace($targetProfile)) {
+  $profileHome = if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+    $env:USERPROFILE
+  } elseif (-not [string]::IsNullOrWhiteSpace($HOME)) {
+    $HOME
+  } else {
+    throw 'Unable to determine the current user profile directory for PowerShell auto-sync.'
+  }
+
+  $targetProfile = Join-Path $profileHome 'Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1'
+}
+
+$profileDir = Split-Path -Parent $targetProfile
 if (-not (Test-Path $profileDir)) {
   New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
 }
 
-if (-not (Test-Path $PROFILE)) {
-  New-Item -ItemType File -Path $PROFILE -Force | Out-Null
+if (-not (Test-Path $targetProfile)) {
+  New-Item -ItemType File -Path $targetProfile -Force | Out-Null
 }
 
 $marker = 'ai-cli-config-sync-hook-start'
-if (Select-String -Path $PROFILE -Pattern $marker -Quiet -ErrorAction SilentlyContinue) {
-  Write-Host "Auto-sync hook already exists in $PROFILE"
+if (Select-String -Path $targetProfile -Pattern $marker -Quiet -ErrorAction SilentlyContinue) {
+  Write-Host "Auto-sync hook already exists in $targetProfile"
   exit 0
 }
 
@@ -56,7 +69,7 @@ if (-not $Global:AiCliSyncPushOnExitRegistered) {
 # <<< ai-cli-config-sync-hook-end <<<
 '@
 
-Add-Content -Path $PROFILE -Value $hook
+Add-Content -Path $targetProfile -Value $hook
 
-Write-Host "Auto-sync hook written to $PROFILE"
+Write-Host "Auto-sync hook written to $targetProfile"
 Write-Host "Edit ~/.cli-sync/config.yml and set auto_pull and/or auto_push to true to enable it."

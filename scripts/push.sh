@@ -20,6 +20,8 @@ BRANCH=${BRANCH:-main}
 
 PYTHON_CMD=()
 PYTHON_CMD_CHECKED=0
+NODE_CMD=()
+NODE_CMD_CHECKED=0
 
 _detect_python() {
   if [ "$PYTHON_CMD_CHECKED" -eq 1 ]; then
@@ -54,11 +56,65 @@ PYEOF
 
 _run_python() {
   _detect_python || return 1
+  _export_runtime_context
   "${PYTHON_CMD[@]}" "$@"
 }
 
+_export_runtime_context() {
+  local name
+  for name in SRC DST REMOTE_FILE LOCAL_FILE KIND OUT_FILE; do
+    if [ "${!name+x}" = "x" ]; then
+      export "$name"
+    fi
+  done
+}
+
+_is_windows_posix_shell() {
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+_detect_node() {
+  if [ "$NODE_CMD_CHECKED" -eq 1 ]; then
+    [ "${#NODE_CMD[@]}" -gt 0 ]
+    return
+  fi
+
+  NODE_CMD_CHECKED=1
+
+  if command -v node >/dev/null 2>&1 && node --version >/dev/null 2>&1; then
+    NODE_CMD=("node")
+    return 0
+  fi
+
+  if _is_windows_posix_shell && command -v node.exe >/dev/null 2>&1 && node.exe --version >/dev/null 2>&1; then
+    NODE_CMD=("node.exe")
+    return 0
+  fi
+
+  NODE_CMD=()
+  return 1
+}
+
+_run_node() {
+  _detect_node || return 1
+  _export_runtime_context
+  "${NODE_CMD[@]}" "$@"
+}
+
 _has_node() {
-  command -v node >/dev/null 2>&1
+  _detect_node
+}
+
+_node_path_arg() {
+  local path="$1"
+  if [ "${#NODE_CMD[@]}" -gt 0 ] && [ "${NODE_CMD[0]}" = "node.exe" ] && command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$path"
+  else
+    printf '%s\n' "$path"
+  fi
 }
 
 # ── 检查同步仓库是否有效 ─────────────────────────────────────────────────────
@@ -97,7 +153,7 @@ _filter_copilot_config_json() {
   local src="$1" dst="$2"
 
   if _detect_python; then
-    SRC="$src" DST="$dst" _run_python << 'PYEOF'
+    env SRC="$src" DST="$dst" "${PYTHON_CMD[@]}" << 'PYEOF'
 import json
 import os
 
@@ -118,12 +174,15 @@ with open(dst, 'w') as f:
     f.write('\n')
 PYEOF
   elif _has_node; then
-    SRC="$src" DST="$dst" node << 'JSEOF'
+    local node_src node_dst
+    node_src=$(_node_path_arg "$src")
+    node_dst=$(_node_path_arg "$dst")
+    "${NODE_CMD[@]}" - "$node_src" "$node_dst" << 'JSEOF'
 const fs = require('fs');
+const readText = (path) => fs.readFileSync(path, 'utf8').replace(/^\uFEFF/, '');
 
-const src = process.env.SRC;
-const dst = process.env.DST;
-const data = JSON.parse(fs.readFileSync(src, 'utf8'));
+const [, , src, dst] = process.argv;
+const data = JSON.parse(readText(src));
 
 const result = {};
 for (const key of ['banner', 'model']) {
@@ -143,7 +202,7 @@ _filter_copilot_mcp_json() {
   local src="$1" dst="$2"
 
   if _detect_python; then
-    SRC="$src" DST="$dst" _run_python << 'PYEOF'
+    env SRC="$src" DST="$dst" "${PYTHON_CMD[@]}" << 'PYEOF'
 import json
 import os
 
@@ -166,12 +225,15 @@ with open(dst, 'w') as f:
     f.write('\n')
 PYEOF
   elif _has_node; then
-    SRC="$src" DST="$dst" node << 'JSEOF'
+    local node_src node_dst
+    node_src=$(_node_path_arg "$src")
+    node_dst=$(_node_path_arg "$dst")
+    "${NODE_CMD[@]}" - "$node_src" "$node_dst" << 'JSEOF'
 const fs = require('fs');
+const readText = (path) => fs.readFileSync(path, 'utf8').replace(/^\uFEFF/, '');
 
-const src = process.env.SRC;
-const dst = process.env.DST;
-const data = JSON.parse(fs.readFileSync(src, 'utf8'));
+const [, , src, dst] = process.argv;
+const data = JSON.parse(readText(src));
 const result = JSON.parse(JSON.stringify(data));
 const servers = result.mcpServers;
 
@@ -227,12 +289,15 @@ with open(dst, 'w') as f:
     json.dump(d, f, indent=2, ensure_ascii=False)
 PYEOF
     elif _has_node; then
-      node << 'JSEOF'
+      local node_src node_dst
+      node_src=$(_node_path_arg "$CLAUDE_DIR/settings.json")
+      node_dst=$(_node_path_arg "$REPO/claude/settings.json")
+      "${NODE_CMD[@]}" - "$node_src" "$node_dst" << 'JSEOF'
 const fs = require('fs');
+const readText = (path) => fs.readFileSync(path, 'utf8').replace(/^\uFEFF/, '');
 
-const src = `${process.env.HOME}/.claude/settings.json`;
-const dst = `${process.env.HOME}/.cli-sync-repo/claude/settings.json`;
-const data = JSON.parse(fs.readFileSync(src, 'utf8'));
+const [, , src, dst] = process.argv;
+const data = JSON.parse(readText(src));
 
 delete data.env;
 
@@ -296,12 +361,15 @@ with open(dst, 'w') as f:
     f.write(content)
 PYEOF
     elif _has_node; then
-      node << 'JSEOF'
+      local node_src node_dst
+      node_src=$(_node_path_arg "$CODEX_DIR/config.toml")
+      node_dst=$(_node_path_arg "$REPO/codex/config.toml")
+      "${NODE_CMD[@]}" - "$node_src" "$node_dst" << 'JSEOF'
 const fs = require('fs');
+const readText = (path) => fs.readFileSync(path, 'utf8').replace(/^\uFEFF/, '');
 
-const src = `${process.env.HOME}/.codex/config.toml`;
-const dst = `${process.env.HOME}/.cli-sync-repo/codex/config.toml`;
-const rawLines = fs.readFileSync(src, 'utf8').replace(/\r\n/g, '\n').split('\n');
+const [, , src, dst] = process.argv;
+const rawLines = readText(src).replace(/\r\n/g, '\n').split('\n');
 if (rawLines.length > 0 && rawLines[rawLines.length - 1] === '') {
   rawLines.pop();
 }

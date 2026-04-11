@@ -21,6 +21,12 @@
 - 修复 `setup.sh` 在复用已有 `~/.cli-sync-repo` 时的方向判断；即使本地同步仓库已存在，只要远端已有内容也会优先执行 Pull 恢复配置
 - 为 `push.sh`、`pull.sh`、`status.sh` 增加可执行 Python 探测与 `node` 回退，避免 Windows 上命中 Microsoft Store `python3` 占位符后同步流程中断
 - 修复 `status.sh` 在 Windows CRLF 行尾下的误报问题，避免共享配置实际一致时仍显示本地有差异
+- 修复 README 中 Windows `cmd` 安装示例的变量展开问题，改为可直接执行的分行写法
+- 修复下载版 `install.ps1` 在 Windows 原生终端里的链路：现在会先由 PowerShell 补齐完整安装 payload，再调用 Git Bash，避免把关键脚本下载留给 Bash 侧处理
+- 新增 `scripts/dev-windows-smoke-test.ps1`，用于在 Windows 下回归安装链路与 `.ps1` 包装脚本
+- 调整 `scripts/dev-windows-smoke-test.ps1`：默认验证当前工作树的安装 payload，并支持额外 spot check GitHub raw 安装命令
+- 调整 `push.sh`、`pull.sh`、`status.sh` 的 Node 回退：仅在原生 Windows POSIX 运行时启用 `node.exe` 探测，并兼容 UTF-8 BOM 与 Windows 路径传递
+- 修复 `enable-auto-sync.ps1` 在 `$PROFILE` 为空时的 PowerShell profile 回退路径，避免 Windows 原生终端下写入 hook 失败
 - 修复 `pull.sh` 中 Python heredoc 的路径展开风险，避免特殊路径导致合并逻辑报错
 - 将“同步配置”默认策略调整为先推送、失败即停，避免本地未推送文件在拉取阶段被镜像删除
 - 简化 `push.sh` 的推送失败处理，提供更明确的认证、权限与远端领先排查提示
