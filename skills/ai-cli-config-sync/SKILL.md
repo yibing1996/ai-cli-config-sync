@@ -229,7 +229,7 @@ bash "$HOME/.cli-sync/status.sh"
 | 推送失败 | 检查远端地址、认证、网络和仓库权限；若远端已领先，先执行拉取并处理差异 |
 | merge 冲突 | `cd ~/.cli-sync-repo && git pull --rebase` 后手动解决 |
 | Windows 原生终端里出现 `/bin/bash: ... ~/.cli-sync/*.sh: No such file or directory` | 说明误走了 WSL 的 `bash.exe`；请改用 `~/.cli-sync/*.ps1`，不要在 PowerShell / cmd 里直接调用裸 `bash` |
-| `jq` / `python3` 未安装 | `sudo apt install jq python3`（推荐）；否则部分 JSON 合并会降级，Copilot 敏感字段不会自动安全过滤 |
+| `jq` / 可用的 Python / `node` 都不可用 | 推荐安装 `jq` 和真正可执行的 `python3`（或 `python` / Windows 的 `py -3`）；如果系统已有 `node`，脚本会自动回退到 `node` 处理 Copilot / Codex 的过滤与合并 |
 
 ---
 

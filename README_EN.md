@@ -235,7 +235,7 @@ The local Git working directory is at `~/.cli-sync-repo/`.
 
 - `bash` (required; on Windows, Git for Windows is recommended because it ships Git Bash)
 - `git` (required)
-- `jq` or `python3` (recommended, for filtering sensitive fields in settings.json / config.toml, and smart merging on pull)
+- `jq`, a working Python runtime (`python3`, `python`, or `py -3` on Windows), or `node` (recommended for filtering sensitive fields in settings.json / config.toml and smart merging on pull; if `python3` on Windows is only the Microsoft Store alias, the scripts automatically fall back to `node`)
 - `rsync` (optional, for efficient directory sync; falls back to `cp`)
 - Git global identity (`git config --global user.name` and `user.email`)
 

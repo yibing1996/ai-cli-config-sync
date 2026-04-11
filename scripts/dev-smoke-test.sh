@@ -30,6 +30,19 @@ assert_not_contains() {
   fi
 }
 
+write_broken_python_shims() {
+  local bindir="$1"
+  mkdir -p "$bindir"
+
+  for name in python3 python py; do
+    cat > "$bindir/$name" <<'EOF'
+#!/usr/bin/env bash
+exit 49
+EOF
+    chmod +x "$bindir/$name"
+  done
+}
+
 run_syntax_check() {
   log "检查核心脚本语法"
   cd "$ROOT_DIR"
@@ -216,6 +229,71 @@ EOF
   rm -rf "$tmpdir"
 }
 
+run_copilot_push_node_fallback_smoke() {
+  local tmpdir home remote fakebin filtered_config filtered_mcp
+  tmpdir="$(mktemp -d)"
+  home="$tmpdir/home"
+  remote="$tmpdir/remote.git"
+  fakebin="$tmpdir/fakebin"
+
+  command -v node >/dev/null 2>&1 || fail "未找到 node，无法执行 Node fallback smoke test"
+  write_broken_python_shims "$fakebin"
+
+  log "验证 push.sh 在 Python 不可用时会回退到 node"
+  mkdir -p "$home/.cli-sync-repo" "$home/.cli-sync" "$home/.copilot"
+  git init --bare "$remote" >/dev/null 2>&1
+  git init "$home/.cli-sync-repo" >/dev/null 2>&1
+  git -C "$home/.cli-sync-repo" config user.name smoke-test
+  git -C "$home/.cli-sync-repo" config user.email smoke@example.com
+  git -C "$home/.cli-sync-repo" remote add origin "$remote"
+  git -C "$home/.cli-sync-repo" checkout -b main >/dev/null 2>&1
+
+  cat > "$home/.cli-sync/config.yml" <<EOF
+remote: $remote
+branch: main
+EOF
+
+  cat > "$home/.copilot/config.json" <<'EOF'
+{
+  "banner": {
+    "hidden": true
+  },
+  "model": "gpt-5",
+  "copilot_tokens": {
+    "github.com": {
+      "token": "secret"
+    }
+  }
+}
+EOF
+
+  cat > "$home/.copilot/mcp-config.json" <<'EOF'
+{
+  "mcpServers": {
+    "duckduckgo-search": {
+      "command": "uvx",
+      "args": ["duckduckgo-mcp-server"],
+      "env": {
+        "UV_HTTP_TIMEOUT": "120"
+      }
+    }
+  }
+}
+EOF
+
+  PATH="$fakebin:$PATH" HOME="$home" bash "$ROOT_DIR/scripts/push.sh" >/dev/null 2>&1
+
+  filtered_config="$home/.cli-sync-repo/copilot/config.json"
+  filtered_mcp="$home/.cli-sync-repo/copilot/mcp-config.json"
+  assert_file "$filtered_config"
+  assert_file "$filtered_mcp"
+  assert_contains "$filtered_config" '"model": "gpt-5"'
+  assert_not_contains "$filtered_config" 'copilot_tokens'
+  assert_not_contains "$filtered_mcp" '"env"'
+
+  rm -rf "$tmpdir"
+}
+
 run_pull_merge_smoke() {
   local tmpdir home remote merged settings
   tmpdir="$(mktemp -d)"
@@ -393,10 +471,110 @@ EOF
   rm -rf "$tmpdir"
 }
 
+run_copilot_pull_node_fallback_smoke() {
+  local tmpdir home remote fakebin merged_config merged_mcp
+  tmpdir="$(mktemp -d)"
+  home="$tmpdir/home"
+  remote="$tmpdir/remote.git"
+  fakebin="$tmpdir/fakebin"
+
+  command -v node >/dev/null 2>&1 || fail "未找到 node，无法执行 Node fallback smoke test"
+  write_broken_python_shims "$fakebin"
+
+  log "验证 pull.sh 在 Python 不可用时会回退到 node"
+  git init --bare "$remote" >/dev/null 2>&1
+  git init "$tmpdir/src" >/dev/null 2>&1
+  git -C "$tmpdir/src" config user.name smoke-test
+  git -C "$tmpdir/src" config user.email smoke@example.com
+  mkdir -p "$tmpdir/src/copilot"
+
+  cat > "$tmpdir/src/copilot/config.json" <<'EOF'
+{
+  "banner": {
+    "hidden": false
+  },
+  "model": "gpt-5"
+}
+EOF
+
+  cat > "$tmpdir/src/copilot/mcp-config.json" <<'EOF'
+{
+  "mcpServers": {
+    "duckduckgo-search": {
+      "command": "uvx",
+      "args": ["duckduckgo-mcp-server"]
+    }
+  }
+}
+EOF
+
+  git -C "$tmpdir/src" add copilot >/dev/null 2>&1
+  git -C "$tmpdir/src" commit -m "init" >/dev/null 2>&1
+  git -C "$tmpdir/src" branch -M main
+  git -C "$tmpdir/src" remote add origin "$remote"
+  git -C "$tmpdir/src" push origin main >/dev/null 2>&1
+  git --git-dir="$remote" symbolic-ref HEAD refs/heads/main
+
+  mkdir -p "$home/.cli-sync" "$home/.copilot"
+  git clone "$remote" "$home/.cli-sync-repo" >/dev/null 2>&1
+
+  cat > "$home/.cli-sync/config.yml" <<EOF
+remote: $remote
+branch: main
+EOF
+
+  cat > "$home/.copilot/config.json" <<'EOF'
+{
+  "firstLaunchAt": "2026-01-01T00:00:00Z",
+  "copilot_tokens": {
+    "github.com": {
+      "token": "secret"
+    }
+  },
+  "trusted_folders": [
+    "/tmp/project"
+  ]
+}
+EOF
+
+  cat > "$home/.copilot/mcp-config.json" <<'EOF'
+{
+  "mcpServers": {
+    "duckduckgo-search": {
+      "command": "old-command",
+      "env": {
+        "UV_HTTP_TIMEOUT": "120"
+      }
+    },
+    "local-only": {
+      "command": "keep-local",
+      "env": {
+        "LOCAL_ONLY": "1"
+      }
+    }
+  }
+}
+EOF
+
+  PATH="$fakebin:$PATH" HOME="$home" bash "$ROOT_DIR/scripts/pull.sh" >/dev/null 2>&1
+
+  merged_config="$home/.copilot/config.json"
+  merged_mcp="$home/.copilot/mcp-config.json"
+  assert_contains "$merged_config" '"model": "gpt-5"'
+  assert_contains "$merged_config" 'copilot_tokens'
+  assert_contains "$merged_config" 'trusted_folders'
+  assert_contains "$merged_mcp" '"command": "uvx"'
+  assert_contains "$merged_mcp" '"UV_HTTP_TIMEOUT": "120"'
+  assert_contains "$merged_mcp" 'local-only'
+  assert_contains "$merged_mcp" 'LOCAL_ONLY'
+
+  rm -rf "$tmpdir"
+}
+
 run_pull_special_path_smoke() {
   local tmpdir home remote merged
   tmpdir="$(mktemp -d)"
-  home="$tmpdir/home\"quoted"
+  home="$tmpdir/home spaced dir"
   remote="$tmpdir/remote.git"
 
   log "验证 pull.sh 在特殊路径下的 Python 合并逻辑"
@@ -495,16 +673,94 @@ EOF
   rm -rf "$tmpdir"
 }
 
+run_setup_existing_repo_prefers_pull_smoke() {
+  local tmpdir home remote result_file
+  tmpdir="$(mktemp -d)"
+  home="$tmpdir/home"
+  remote="$tmpdir/remote.git"
+  result_file="$home/result.txt"
+
+  log "验证 setup.sh 在复用已有同步仓库时仍会优先拉取远端配置"
+  git init --bare "$remote" >/dev/null 2>&1
+  git init "$tmpdir/src" >/dev/null 2>&1
+  git -C "$tmpdir/src" config user.name smoke-test
+  git -C "$tmpdir/src" config user.email smoke@example.com
+  echo remote > "$tmpdir/src/file.txt"
+  git -C "$tmpdir/src" add file.txt >/dev/null 2>&1
+  git -C "$tmpdir/src" commit -m "init" >/dev/null 2>&1
+  git -C "$tmpdir/src" branch -M main
+  git -C "$tmpdir/src" remote add origin "$remote"
+  git -C "$tmpdir/src" push origin main >/dev/null 2>&1
+  git --git-dir="$remote" symbolic-ref HEAD refs/heads/main
+
+  mkdir -p "$home/.cli-sync"
+  cat > "$home/.cli-sync/pull.sh" <<'EOF'
+#!/usr/bin/env bash
+echo PULL > "$HOME/result.txt"
+EOF
+  cat > "$home/.cli-sync/push.sh" <<'EOF'
+#!/usr/bin/env bash
+echo PUSH > "$HOME/result.txt"
+EOF
+  chmod +x "$home/.cli-sync/pull.sh" "$home/.cli-sync/push.sh"
+
+  git clone "$remote" "$home/.cli-sync-repo" >/dev/null 2>&1
+
+  HOME="$home" bash "$ROOT_DIR/scripts/setup.sh" "$remote" >/dev/null 2>&1
+
+  assert_file "$result_file"
+  assert_contains "$result_file" 'PULL'
+  assert_not_contains "$result_file" 'PUSH'
+
+  rm -rf "$tmpdir"
+}
+
+run_status_crlf_node_fallback_smoke() {
+  local tmpdir home fakebin output_file
+  tmpdir="$(mktemp -d)"
+  home="$tmpdir/home"
+  fakebin="$tmpdir/fakebin"
+  output_file="$tmpdir/status.out"
+
+  command -v node >/dev/null 2>&1 || fail "未找到 node，无法执行 Node fallback smoke test"
+  write_broken_python_shims "$fakebin"
+
+  log "验证 status.sh 在 CRLF 差异和 Python 不可用时不会误报"
+  mkdir -p "$home/.cli-sync-repo/copilot" "$home/.copilot"
+  git init "$home/.cli-sync-repo" >/dev/null 2>&1
+  git -C "$home/.cli-sync-repo" config user.name smoke-test
+  git -C "$home/.cli-sync-repo" config user.email smoke@example.com
+
+  printf '# Shared Instructions\n' > "$home/.cli-sync-repo/copilot/copilot-instructions.md"
+  printf '{\n  "model": "gpt-5"\n}\n' > "$home/.cli-sync-repo/copilot/config.json"
+  git -C "$home/.cli-sync-repo" add copilot >/dev/null 2>&1
+  git -C "$home/.cli-sync-repo" commit -m "init" >/dev/null 2>&1
+
+  printf '# Shared Instructions\r\n' > "$home/.copilot/copilot-instructions.md"
+  printf '{\r\n  "model": "gpt-5"\r\n}\r\n' > "$home/.copilot/config.json"
+
+  PATH="$fakebin:$PATH" HOME="$home" bash "$ROOT_DIR/scripts/status.sh" >"$output_file" 2>&1
+
+  assert_contains "$output_file" '✅ 所有核心配置文件与仓库一致'
+  assert_not_contains "$output_file" '有本地未推送'
+
+  rm -rf "$tmpdir"
+}
+
 main() {
   run_syntax_check
   run_docs_consistency_check
   run_install_smoke
   run_push_filter_smoke
   run_copilot_push_filter_smoke
+  run_copilot_push_node_fallback_smoke
   run_pull_merge_smoke
   run_copilot_pull_merge_smoke
+  run_copilot_pull_node_fallback_smoke
   run_pull_special_path_smoke
   run_pull_diverge_smoke
+  run_setup_existing_repo_prefers_pull_smoke
+  run_status_crlf_node_fallback_smoke
   log "✅ 所有 smoke test 通过"
 }
 

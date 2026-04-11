@@ -235,7 +235,7 @@ auto_push: false   # 设为 true：shell 退出时自动 push
 
 - `bash`（必须；Windows 建议安装 Git for Windows，自带 Git Bash）
 - `git`（必须）
-- `jq` 或 `python3`（推荐，用于过滤 settings.json / config.toml 敏感字段，以及 Pull 时智能合并）
+- `jq`、可用的 Python（`python3` / `python` / Windows 的 `py -3`）或 `node`（推荐，用于过滤 settings.json / config.toml 敏感字段，以及 Pull 时智能合并；若 Windows 上的 `python3` 只是应用商店占位符，脚本会自动回退到 `node`）
 - `rsync`（可选，用于高效目录同步；无则自动降级为 cp）
 - Git 全局身份配置（`git config --global user.name` 和 `user.email`）
 

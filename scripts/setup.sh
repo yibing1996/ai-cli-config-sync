@@ -28,12 +28,20 @@ mkdir -p "$SCRIPTS_DIR" "$REPO_DIR"
 if [ "$(ls -A "$REPO_DIR" 2>/dev/null)" ]; then
   if git -C "$REPO_DIR" rev-parse --git-dir >/dev/null 2>&1; then
     echo "检测到已有同步仓库，复用现有仓库"
+    if ! git ls-remote "$REMOTE_URL" &>/dev/null; then
+      echo "❌ 无法访问远端仓库：$REMOTE_URL"
+      echo "   请检查：1) 仓库地址是否正确  2) 网络连接  3) 认证配置（SSH key 或 Token）"
+      exit 1
+    fi
     if git -C "$REPO_DIR" remote get-url origin >/dev/null 2>&1; then
       git -C "$REPO_DIR" remote set-url origin "$REMOTE_URL"
     else
       git -C "$REPO_DIR" remote add origin "$REMOTE_URL"
     fi
     BRANCH=$(git -C "$REPO_DIR" symbolic-ref --quiet --short HEAD 2>/dev/null || echo "main")
+    if git ls-remote --heads "$REMOTE_URL" 2>/dev/null | grep -q .; then
+      HAS_REMOTE_CONTENT=true
+    fi
   else
     echo "❌ $REPO_DIR 已存在且非空，但不是有效 Git 仓库"
     echo "   请备份后删除该目录，再重新初始化"
@@ -122,7 +130,9 @@ fi
 echo "✅ Setup 完成"
 
 if [ "$HAS_REMOTE_CONTENT" = "true" ]; then
+  echo "ℹ️  检测到远端已有配置，初始化将同步远端到本地"
   bash "$HOME/.cli-sync/pull.sh"
 else
+  echo "ℹ️  远端为空，初始化将推送本地配置"
   bash "$HOME/.cli-sync/push.sh"
 fi

@@ -24,6 +24,49 @@ REMOTE=$(grep '^remote:' "$CONFIG_FILE" | sed 's/remote: *//')
 BRANCH=$(grep '^branch:' "$CONFIG_FILE" | sed 's/branch: *//' | tr -d '[:space:]')
 BRANCH=${BRANCH:-main}
 
+PYTHON_CMD=()
+PYTHON_CMD_CHECKED=0
+
+_detect_python() {
+  if [ "$PYTHON_CMD_CHECKED" -eq 1 ]; then
+    [ "${#PYTHON_CMD[@]}" -gt 0 ]
+    return
+  fi
+
+  PYTHON_CMD_CHECKED=1
+
+  local candidate
+  for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1 && "$candidate" - <<'PYEOF' >/dev/null 2>&1
+import json
+PYEOF
+    then
+      PYTHON_CMD=("$candidate")
+      return 0
+    fi
+  done
+
+  if command -v py >/dev/null 2>&1 && py -3 - <<'PYEOF' >/dev/null 2>&1
+import json
+PYEOF
+  then
+    PYTHON_CMD=("py" "-3")
+    return 0
+  fi
+
+  PYTHON_CMD=()
+  return 1
+}
+
+_run_python() {
+  _detect_python || return 1
+  "${PYTHON_CMD[@]}" "$@"
+}
+
+_has_node() {
+  command -v node >/dev/null 2>&1
+}
+
 # ── 检查同步仓库是否有效 ─────────────────────────────────────────────────────
 if ! git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1; then
   echo "❌ 同步仓库无效：$REPO"
@@ -93,9 +136,8 @@ _merge_settings_json() {
     else
       cp "$remote_file" "$local_file"
     fi
-  # 有 python3 时
-  elif command -v python3 &> /dev/null; then
-    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" python3 << 'PYEOF'
+  elif _detect_python; then
+    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" _run_python << 'PYEOF'
 import json, os
 remote = os.environ['REMOTE_FILE']
 local = os.environ['LOCAL_FILE']
@@ -114,9 +156,24 @@ if local_env is not None:
 with open(local, 'w') as f:
     json.dump(result, f, indent=2, ensure_ascii=False)
 PYEOF
+  elif _has_node; then
+    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" node << 'JSEOF'
+const fs = require('fs');
+
+const remote = process.env.REMOTE_FILE;
+const local = process.env.LOCAL_FILE;
+const localData = JSON.parse(fs.readFileSync(local, 'utf8'));
+const remoteData = JSON.parse(fs.readFileSync(remote, 'utf8'));
+const result = { ...remoteData };
+
+if (localData.env !== undefined && localData.env !== null) {
+  result.env = localData.env;
+}
+
+fs.writeFileSync(local, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
+JSEOF
   else
-    # 无工具时直接覆盖，但警告
-    echo "⚠️  无 jq 或 python3，settings.json 直接覆盖（本机 env 可能丢失）"
+    echo "⚠️  无 jq、可用的 Python 或 node，settings.json 直接覆盖（本机 env 可能丢失）"
     cp "$remote_file" "$local_file"
   fi
 }
@@ -132,8 +189,8 @@ _merge_config_toml() {
     return 0
   fi
 
-  if command -v python3 &> /dev/null; then
-    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" python3 << 'PYEOF'
+  if _detect_python; then
+    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" _run_python << 'PYEOF'
 import os
 import re
 
@@ -189,9 +246,73 @@ content = ''.join(result).rstrip('\n') + '\n'
 with open(local, 'w') as f:
     f.write(content)
 PYEOF
+  elif _has_node; then
+    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" node << 'JSEOF'
+const fs = require('fs');
+
+const remote = process.env.REMOTE_FILE;
+const local = process.env.LOCAL_FILE;
+const localLines = fs.readFileSync(local, 'utf8').replace(/\r\n/g, '\n').split('\n');
+if (localLines.length > 0 && localLines[localLines.length - 1] === '') {
+  localLines.pop();
+}
+
+const localProjects = [];
+const localEnvs = {};
+let currentSection = '';
+let inProjects = false;
+
+for (const rawLine of localLines) {
+  const line = `${rawLine}\n`;
+  if (/^\s*\[projects\./.test(line)) {
+    inProjects = true;
+    localProjects.push(line);
+    continue;
+  }
+  if (/^\s*\[/.test(line)) {
+    if (inProjects) {
+      inProjects = false;
+    }
+    currentSection = line.trim();
+  }
+  if (inProjects) {
+    localProjects.push(line);
+    continue;
+  }
+  if (/^\s*env\s*=\s*\{/.test(line)) {
+    localEnvs[currentSection] = line;
+  }
+}
+
+const remoteLines = fs.readFileSync(remote, 'utf8').replace(/\r\n/g, '\n').split('\n');
+if (remoteLines.length > 0 && remoteLines[remoteLines.length - 1] === '') {
+  remoteLines.pop();
+}
+
+const result = [];
+currentSection = '';
+for (const rawLine of remoteLines) {
+  const line = `${rawLine}\n`;
+  if (/^\s*\[/.test(line)) {
+    currentSection = line.trim();
+  }
+  if (/^\s*#\s*env\s*=\s*\{.*已过滤/.test(line) && Object.prototype.hasOwnProperty.call(localEnvs, currentSection)) {
+    result.push(localEnvs[currentSection]);
+    continue;
+  }
+  result.push(line);
+}
+
+if (localProjects.length > 0) {
+  result.push('\n');
+  result.push(...localProjects);
+}
+
+const content = `${result.join('').replace(/\n*$/, '')}\n`;
+fs.writeFileSync(local, content, 'utf8');
+JSEOF
   else
-    # 无 python3 时直接覆盖，但警告
-    echo "⚠️  无 python3，config.toml 直接覆盖（本机 [projects] 和 env 可能丢失）"
+    echo "⚠️  无可用的 Python 或 node，config.toml 直接覆盖（本机 [projects] 和 env 可能丢失）"
     cp "$remote_file" "$local_file"
   fi
 }
@@ -206,8 +327,8 @@ _merge_copilot_config_json() {
     return 0
   fi
 
-  if command -v python3 &> /dev/null; then
-    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" python3 << 'PYEOF'
+  if _detect_python; then
+    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" _run_python << 'PYEOF'
 import json
 import os
 
@@ -234,8 +355,32 @@ with open(local, 'w') as f:
     json.dump(result, f, indent=2, ensure_ascii=False)
     f.write('\n')
 PYEOF
+  elif _has_node; then
+    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" node << 'JSEOF'
+const fs = require('fs');
+
+const remote = process.env.REMOTE_FILE;
+const local = process.env.LOCAL_FILE;
+const localData = JSON.parse(fs.readFileSync(local, 'utf8'));
+const remoteData = JSON.parse(fs.readFileSync(remote, 'utf8'));
+const result = { ...remoteData };
+
+for (const key of [
+  'firstLaunchAt',
+  'copilot_tokens',
+  'last_logged_in_user',
+  'logged_in_users',
+  'trusted_folders',
+]) {
+  if (Object.prototype.hasOwnProperty.call(localData, key)) {
+    result[key] = localData[key];
+  }
+}
+
+fs.writeFileSync(local, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
+JSEOF
   else
-    echo "⚠️  无 python3，Copilot config.json 直接覆盖（本机登录态 / Token 可能丢失）"
+    echo "⚠️  无可用的 Python 或 node，Copilot config.json 直接覆盖（本机登录态 / Token 可能丢失）"
     cp "$remote_file" "$local_file"
   fi
 }
@@ -250,8 +395,8 @@ _merge_copilot_mcp_json() {
     return 0
   fi
 
-  if command -v python3 &> /dev/null; then
-    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" python3 << 'PYEOF'
+  if _detect_python; then
+    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" _run_python << 'PYEOF'
 import json
 import os
 
@@ -287,8 +432,44 @@ with open(local, 'w') as f:
     json.dump(result, f, indent=2, ensure_ascii=False)
     f.write('\n')
 PYEOF
+  elif _has_node; then
+    REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" node << 'JSEOF'
+const fs = require('fs');
+
+const remote = process.env.REMOTE_FILE;
+const local = process.env.LOCAL_FILE;
+const localData = JSON.parse(fs.readFileSync(local, 'utf8'));
+const remoteData = JSON.parse(fs.readFileSync(remote, 'utf8'));
+const result = JSON.parse(JSON.stringify(remoteData));
+const localServers = localData.mcpServers;
+
+if (localServers && typeof localServers === 'object' && !Array.isArray(localServers)) {
+  if (!result.mcpServers || typeof result.mcpServers !== 'object' || Array.isArray(result.mcpServers)) {
+    result.mcpServers = JSON.parse(JSON.stringify(localServers));
+  } else {
+    for (const [name, remoteServer] of Object.entries(result.mcpServers)) {
+      const localServer = localServers[name];
+      if (
+        remoteServer && typeof remoteServer === 'object' && !Array.isArray(remoteServer) &&
+        localServer && typeof localServer === 'object' && !Array.isArray(localServer) &&
+        Object.prototype.hasOwnProperty.call(localServer, 'env')
+      ) {
+        result.mcpServers[name] = { ...remoteServer, env: localServer.env };
+      }
+    }
+
+    for (const [name, localServer] of Object.entries(localServers)) {
+      if (!Object.prototype.hasOwnProperty.call(result.mcpServers, name)) {
+        result.mcpServers[name] = JSON.parse(JSON.stringify(localServer));
+      }
+    }
+  }
+}
+
+fs.writeFileSync(local, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
+JSEOF
   else
-    echo "⚠️  无 python3，Copilot mcp-config.json 直接覆盖（本机 env 可能丢失）"
+    echo "⚠️  无可用的 Python 或 node，Copilot mcp-config.json 直接覆盖（本机 env 可能丢失）"
     cp "$remote_file" "$local_file"
   fi
 }

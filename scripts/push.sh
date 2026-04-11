@@ -18,6 +18,49 @@ REMOTE=$(grep '^remote:' "$CONFIG_FILE" | sed 's/remote: *//')
 BRANCH=$(grep '^branch:' "$CONFIG_FILE" | sed 's/branch: *//' | tr -d '[:space:]')
 BRANCH=${BRANCH:-main}
 
+PYTHON_CMD=()
+PYTHON_CMD_CHECKED=0
+
+_detect_python() {
+  if [ "$PYTHON_CMD_CHECKED" -eq 1 ]; then
+    [ "${#PYTHON_CMD[@]}" -gt 0 ]
+    return
+  fi
+
+  PYTHON_CMD_CHECKED=1
+
+  local candidate
+  for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1 && "$candidate" - <<'PYEOF' >/dev/null 2>&1
+import json
+PYEOF
+    then
+      PYTHON_CMD=("$candidate")
+      return 0
+    fi
+  done
+
+  if command -v py >/dev/null 2>&1 && py -3 - <<'PYEOF' >/dev/null 2>&1
+import json
+PYEOF
+  then
+    PYTHON_CMD=("py" "-3")
+    return 0
+  fi
+
+  PYTHON_CMD=()
+  return 1
+}
+
+_run_python() {
+  _detect_python || return 1
+  "${PYTHON_CMD[@]}" "$@"
+}
+
+_has_node() {
+  command -v node >/dev/null 2>&1
+}
+
 # ── 检查同步仓库是否有效 ─────────────────────────────────────────────────────
 if ! git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1; then
   echo "❌ 同步仓库无效：$REPO"
@@ -53,8 +96,8 @@ _sync_dir() {
 _filter_copilot_config_json() {
   local src="$1" dst="$2"
 
-  if command -v python3 &> /dev/null; then
-    SRC="$src" DST="$dst" python3 << 'PYEOF'
+  if _detect_python; then
+    SRC="$src" DST="$dst" _run_python << 'PYEOF'
 import json
 import os
 
@@ -74,16 +117,33 @@ with open(dst, 'w') as f:
     json.dump(result, f, indent=2, ensure_ascii=False)
     f.write('\n')
 PYEOF
+  elif _has_node; then
+    SRC="$src" DST="$dst" node << 'JSEOF'
+const fs = require('fs');
+
+const src = process.env.SRC;
+const dst = process.env.DST;
+const data = JSON.parse(fs.readFileSync(src, 'utf8'));
+
+const result = {};
+for (const key of ['banner', 'model']) {
+  if (Object.prototype.hasOwnProperty.call(data, key)) {
+    result[key] = data[key];
+  }
+}
+
+fs.writeFileSync(dst, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
+JSEOF
   else
-    echo "⚠️  未找到 python3，已跳过 Copilot config.json 同步（避免上传本机登录态和 Token）"
+    echo "⚠️  未找到可用的 Python 或 node，已跳过 Copilot config.json 同步（避免上传本机登录态和 Token）"
   fi
 }
 
 _filter_copilot_mcp_json() {
   local src="$1" dst="$2"
 
-  if command -v python3 &> /dev/null; then
-    SRC="$src" DST="$dst" python3 << 'PYEOF'
+  if _detect_python; then
+    SRC="$src" DST="$dst" _run_python << 'PYEOF'
 import json
 import os
 
@@ -105,8 +165,28 @@ with open(dst, 'w') as f:
     json.dump(result, f, indent=2, ensure_ascii=False)
     f.write('\n')
 PYEOF
+  elif _has_node; then
+    SRC="$src" DST="$dst" node << 'JSEOF'
+const fs = require('fs');
+
+const src = process.env.SRC;
+const dst = process.env.DST;
+const data = JSON.parse(fs.readFileSync(src, 'utf8'));
+const result = JSON.parse(JSON.stringify(data));
+const servers = result.mcpServers;
+
+if (servers && typeof servers === 'object' && !Array.isArray(servers)) {
+  for (const server of Object.values(servers)) {
+    if (server && typeof server === 'object' && !Array.isArray(server)) {
+      delete server.env;
+    }
+  }
+}
+
+fs.writeFileSync(dst, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
+JSEOF
   else
-    echo "⚠️  未找到 python3，已跳过 Copilot mcp-config.json 同步（避免上传本机 env）"
+    echo "⚠️  未找到可用的 Python 或 node，已跳过 Copilot mcp-config.json 同步（避免上传本机 env）"
   fi
 }
 
@@ -135,8 +215,8 @@ if [ -d "$CLAUDE_DIR" ]; then
   if [ -f "$CLAUDE_DIR/settings.json" ]; then
     if command -v jq &> /dev/null; then
       jq 'del(.env)' "$CLAUDE_DIR/settings.json" > "$REPO/claude/settings.json"
-    elif command -v python3 &> /dev/null; then
-      python3 << 'PYEOF'
+    elif _detect_python; then
+      _run_python << 'PYEOF'
 import json, os
 src = os.path.expanduser('~/.claude/settings.json')
 dst = os.path.expanduser('~/.cli-sync-repo/claude/settings.json')
@@ -146,8 +226,20 @@ d.pop('env', None)
 with open(dst, 'w') as f:
     json.dump(d, f, indent=2, ensure_ascii=False)
 PYEOF
+    elif _has_node; then
+      node << 'JSEOF'
+const fs = require('fs');
+
+const src = `${process.env.HOME}/.claude/settings.json`;
+const dst = `${process.env.HOME}/.cli-sync-repo/claude/settings.json`;
+const data = JSON.parse(fs.readFileSync(src, 'utf8'));
+
+delete data.env;
+
+fs.writeFileSync(dst, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+JSEOF
     else
-      echo "⚠️  未找到 jq 或 python3，settings.json 将完整复制（请确保使用私有仓库）"
+      echo "⚠️  未找到 jq、可用的 Python 或 node，settings.json 将完整复制（请确保使用私有仓库）"
       cp "$CLAUDE_DIR/settings.json" "$REPO/claude/"
     fi
   fi
@@ -169,8 +261,8 @@ if [ -d "$CODEX_DIR" ]; then
 
   # config.toml（过滤 [projects.*] 段和 env 字段）
   if [ -f "$CODEX_DIR/config.toml" ]; then
-    if command -v python3 &> /dev/null; then
-      python3 << 'PYEOF'
+    if _detect_python; then
+      _run_python << 'PYEOF'
 import re, os
 
 src = os.path.expanduser('~/.codex/config.toml')
@@ -203,8 +295,45 @@ content = ''.join(result).rstrip('\n') + '\n'
 with open(dst, 'w') as f:
     f.write(content)
 PYEOF
+    elif _has_node; then
+      node << 'JSEOF'
+const fs = require('fs');
+
+const src = `${process.env.HOME}/.codex/config.toml`;
+const dst = `${process.env.HOME}/.cli-sync-repo/codex/config.toml`;
+const rawLines = fs.readFileSync(src, 'utf8').replace(/\r\n/g, '\n').split('\n');
+if (rawLines.length > 0 && rawLines[rawLines.length - 1] === '') {
+  rawLines.pop();
+}
+
+const result = [];
+let skipSection = false;
+
+for (const rawLine of rawLines) {
+  const line = `${rawLine}\n`;
+  if (/^\s*\[projects\./.test(line)) {
+    skipSection = true;
+    continue;
+  }
+  if (/^\s*\[(?!projects\.)/.test(line)) {
+    skipSection = false;
+  }
+  if (skipSection) {
+    continue;
+  }
+  if (/^\s*env\s*=\s*\{/.test(line)) {
+    const indent = (line.match(/^(\s*)/) || [''])[1];
+    result.push(`${indent}# env = { ... }  # 已过滤，请在本机手动配置\n`);
+    continue;
+  }
+  result.push(line);
+}
+
+const content = `${result.join('').replace(/\n*$/, '')}\n`;
+fs.writeFileSync(dst, content, 'utf8');
+JSEOF
     else
-      echo "⚠️  未找到 python3，config.toml 将完整复制（[projects] 和 env 未过滤，请确保使用私有仓库）"
+      echo "⚠️  未找到可用的 Python 或 node，config.toml 将完整复制（[projects] 和 env 未过滤，请确保使用私有仓库）"
       cp "$CODEX_DIR/config.toml" "$REPO/codex/"
     fi
   fi
