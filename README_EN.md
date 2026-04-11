@@ -63,34 +63,20 @@ curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/
 - If you are starting from **Windows cmd**, call Git Bash explicitly:
 
 ```cmd
-"C:\Program Files\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash"
+powershell -NoProfile -Command "$gitRoot = Split-Path (Split-Path (Get-Command git).Source -Parent) -Parent; & (Join-Path $gitRoot 'bin\bash.exe') -lc 'curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash'"
 ```
 
-- The `C:\Program Files\Git\bin\bash.exe` path above is only the **default installation path**. If Git is installed elsewhere, run `where git` first
-- For example, if `where git` prints `E:\software\Git\cmd\git.exe`, the matching Git Bash path is usually `E:\software\Git\bin\bash.exe`
-- In that case, use:
-
-```cmd
-"E:\software\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash"
-```
+- This command dynamically resolves your Git installation path via `Get-Command git`, then builds the matching `bin\bash.exe` path automatically
+- If you only want to inspect the detected Git path first, run `where git` from `cmd`
 
 - If you are starting from **Windows PowerShell**, use:
 
 ```powershell
-& "C:\Program Files\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash"
+ $gitRoot = Split-Path (Split-Path (Get-Command git).Source -Parent) -Parent
+ & (Join-Path $gitRoot 'bin\bash.exe') -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash"
 ```
 
-- If Git is not installed in the default location, run:
-
-```powershell
-(Get-Command git).Source
-```
-
-- For example, if it prints `E:\software\Git\cmd\git.exe`, use:
-
-```powershell
-& "E:\software\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash"
-```
+- This variant is also path-independent. If you want to inspect the detected Git path first, run `(Get-Command git).Source`
 
 - If you run the installer inside **WSL**, configs are installed into WSL's own `~/.claude` / `~/.codex` / `~/.copilot`, not your Windows user profile
 

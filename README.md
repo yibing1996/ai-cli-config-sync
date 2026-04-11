@@ -63,34 +63,20 @@ curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/
 - 如果你在 **Windows cmd** 中执行，请显式调用 Git Bash：
 
 ```cmd
-"C:\Program Files\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash"
+powershell -NoProfile -Command "$gitRoot = Split-Path (Split-Path (Get-Command git).Source -Parent) -Parent; & (Join-Path $gitRoot 'bin\bash.exe') -lc 'curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash'"
 ```
 
-- 上面这条命令里的 `C:\Program Files\Git\bin\bash.exe` 只是 **默认安装路径示例**；如果你的 Git 安装在别的位置，请先执行 `where git`
-- 假设 `where git` 输出的是 `E:\software\Git\cmd\git.exe`，那么对应的 Git Bash 通常就是 `E:\software\Git\bin\bash.exe`
-- 也就是说，你应当把命令改成：
-
-```cmd
-"E:\software\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash"
-```
+- 这条命令会先用 `Get-Command git` 动态找到你的 Git 安装位置，再自动拼出对应的 `bin\bash.exe`
+- 如果你只想确认 Git 的实际路径，也可以先在 `cmd` 中执行 `where git`
 
 - 如果你在 **Windows PowerShell** 中执行，请这样调用 Git Bash：
 
 ```powershell
-& "C:\Program Files\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash"
+ $gitRoot = Split-Path (Split-Path (Get-Command git).Source -Parent) -Parent
+ & (Join-Path $gitRoot 'bin\bash.exe') -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash"
 ```
 
-- 如果你的 Git 不在默认路径，请先执行：
-
-```powershell
-(Get-Command git).Source
-```
-
-- 假设输出为 `E:\software\Git\cmd\git.exe`，那么请改用：
-
-```powershell
-& "E:\software\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash"
-```
+- 这条写法同样不依赖固定安装路径；如果你想先确认探测结果，可以单独执行 `(Get-Command git).Source`
 
 - 如果你在 **WSL** 中执行，配置会安装到 WSL 自己的 `~/.claude` / `~/.codex` / `~/.copilot`，不会写入 Windows 本机用户目录
 
