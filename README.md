@@ -6,9 +6,7 @@
 
 [English](./README_EN.md) | 中文
 
-> 当前状态：**Beta / 试用版**
->
-> 建议先在**个人私有仓库**中使用，并先在自己的多台机器上完成一轮完整同步验证后，再在团队范围内推广。
+> 建议使用**私有 Git 仓库**保存真实个人配置，并在自己的多台机器上先完成一轮完整同步验证。
 
 ---
 
@@ -39,12 +37,12 @@ AI 说：请提供你的 Git 仓库地址...
 
 ## 安装
 
-首次试用建议：
+推荐使用建议：
 
 - 优先准备一个 **GitHub 私有仓库**
 - 先在一台已配置好的机器上执行一次初始化和推送
 - 再在另一台机器上验证拉取恢复是否符合预期
-- 确认无误后，再考虑改成公开仓库或分享给团队成员
+- 确认无误后，再分享给团队成员或用于更大范围场景
 
 ### 方法一：一行命令安装（推荐）
 
@@ -52,11 +50,47 @@ AI 说：请提供你的 Git 仓库地址...
 bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh)
 ```
 
+说明：
+
+- 单独执行 `curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh` 只会把脚本内容打印到终端，不会自动安装
+- 正确做法是把脚本交给 `bash` 执行；在 **Git Bash / WSL / Linux / macOS** 中，上面的写法都可用
+- 如果你在 **Windows Git Bash** 下遇到进程替换兼容问题，也可以这样执行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh | bash
+```
+
+- 如果你在 **Windows cmd** 中执行，请显式调用 Git Bash：
+
+```cmd
+"C:\Program Files\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh | bash"
+```
+
+- 如果你在 **Windows PowerShell** 中执行，请这样调用 Git Bash：
+
+```powershell
+& "C:\Program Files\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh | bash"
+```
+
+- 如果你在 **WSL** 中执行，配置会安装到 WSL 自己的 `~/.claude` / `~/.codex` / `~/.copilot`，不会写入 Windows 本机用户目录
+
 ### 方法二：clone 后安装
 
 ```bash
 git clone https://github.com/yibing1996/cli-config-sync.git
 cd cli-config-sync
+bash install.sh
+```
+
+Windows / Git Bash 额外说明：
+
+- 如果你执行 `bash install.sh` 时看到 `$'\r': command not found`，通常不是脚本逻辑有问题，而是 Git 在 clone 时把 `*.sh` 签出成了 `CRLF`
+- 这个仓库现在已通过 `.gitattributes` 强制 `*.sh` 使用 `LF`；拉取最新版本后重新 clone 一次通常就能恢复正常
+- `git clone` 可以在 `cmd`、PowerShell、Git Bash 中执行，但 `install.sh` 建议在 **Git Bash / WSL / Linux / macOS** 里运行
+- 如果你想在当前目录先临时修复，也可以执行：
+
+```bash
+sed -i 's/\r$//' install.sh scripts/*.sh
 bash install.sh
 ```
 
@@ -176,7 +210,7 @@ auto_push: false   # 设为 true：shell 退出时自动 push
 - 自动同步使用保守的快进策略；如果本地同步仓库存在分叉、未提交变更或未推送提交，自动拉取会停止而不是强行合并
 - `auth.json`、`vendor_imports/`、数据库、会话、缓存等本机运行数据不会同步
 - 恢复后请手动检查 `config.toml` 与 `~/.copilot/mcp-config.json` 中和本机路径强相关的 MCP 命令、解释器路径、工作目录等配置
-- 项目当前仍处于 Beta 阶段，更适合个人或小范围试用后再推广到团队
+- Windows 环境建议优先使用 **Git Bash** 执行安装与同步命令，并确保仓库中的 `*.sh` 文件保持 `LF` 行尾
 
 ---
 
@@ -196,7 +230,7 @@ auto_push: false   # 设为 true：shell 退出时自动 push
 
 ## 本地快速自测
 
-在发布前，建议先在项目根目录运行：
+如果你修改了脚本，或想先在本地确认安装与同步链路，建议在项目根目录运行：
 
 ```bash
 bash scripts/dev-smoke-test.sh
@@ -212,9 +246,9 @@ bash scripts/dev-smoke-test.sh
 
 ---
 
-## 发布前自测清单
+## 推荐验证清单
 
-如果你准备对外发布或邀请他人试用，建议至少完成以下检查：
+如果你准备在真实配置仓库中使用，建议至少完成以下检查：
 
 - 在本地先运行一次 `bash scripts/dev-smoke-test.sh`
 - 用 **GitHub 私有仓库** 跑通一次完整流程，避免在公开仓库里误同步敏感配置

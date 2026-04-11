@@ -6,9 +6,7 @@ Supports: **GitHub Copilot CLI** · **Claude Code CLI** · **Codex CLI**
 
 English | [中文](./README.md)
 
-> Status: **Beta / Early Access**
->
-> Recommended for use with a **personal private repository** first. Validate one full sync cycle across your own machines before rolling it out to a team.
+> Use a **private Git repository** for real personal configs, and validate one full sync cycle across your own machines first.
 
 ---
 
@@ -39,12 +37,12 @@ AI:  Please provide your Git repository URL...
 
 ## Installation
 
-Recommended for your first trial:
+Recommended usage:
 
 - Start with a **GitHub private repository**
 - Run initialization and first push on one machine that already has your configs
 - Validate pull-and-restore behavior on a second machine
-- Only after that consider making the repo public or sharing it with teammates
+- Only after that share it with teammates or use it in a wider workflow
 
 ### Option 1: One-line install (recommended)
 
@@ -52,11 +50,47 @@ Recommended for your first trial:
 bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh)
 ```
 
+Notes:
+
+- Running `curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh` by itself only prints the script contents; it does not install anything
+- You must pass the script to `bash`; the command above works in **Git Bash / WSL / Linux / macOS**
+- If process substitution is awkward in **Windows Git Bash**, you can also use:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh | bash
+```
+
+- If you are starting from **Windows cmd**, call Git Bash explicitly:
+
+```cmd
+"C:\Program Files\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh | bash"
+```
+
+- If you are starting from **Windows PowerShell**, use:
+
+```powershell
+& "C:\Program Files\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh | bash"
+```
+
+- If you run the installer inside **WSL**, configs are installed into WSL's own `~/.claude` / `~/.codex` / `~/.copilot`, not your Windows user profile
+
 ### Option 2: Clone and install
 
 ```bash
 git clone https://github.com/yibing1996/cli-config-sync.git
 cd cli-config-sync
+bash install.sh
+```
+
+Windows / Git Bash note:
+
+- If you see `$'\r': command not found`, the installer itself is usually fine; Git most likely checked out `*.sh` files with `CRLF` line endings
+- This repo now ships with `.gitattributes` to force `LF` for `*.sh`; pulling the latest version and re-cloning should fix it
+- `git clone` can be done from `cmd`, PowerShell, or Git Bash, but `install.sh` itself is best run from **Git Bash / WSL / Linux / macOS**
+- If you want a quick fix in the current checkout, run:
+
+```bash
+sed -i 's/\r$//' install.sh scripts/*.sh
 bash install.sh
 ```
 
@@ -176,7 +210,7 @@ The local Git working directory is at `~/.cli-sync-repo/`.
 - Auto-sync uses a conservative fast-forward-only strategy; if the local sync repo has divergence, uncommitted changes, or unpushed commits, auto-pull stops instead of forcing a merge
 - Runtime-local data such as `auth.json`, `vendor_imports/`, databases, sessions, and caches are intentionally not synced
 - After restore, manually verify machine-specific paths in both `config.toml` and `~/.copilot/mcp-config.json`, such as MCP command paths, interpreter locations, and working directories
-- The project is still in Beta and is better suited for personal or small-scale trial usage before wider team rollout
+- On Windows, prefer **Git Bash** for installation and sync commands, and make sure repository `*.sh` files keep `LF` line endings
 
 ---
 
@@ -196,7 +230,7 @@ Auto-sync notes:
 
 ## Local Smoke Test
 
-Before publishing, run this from the project root:
+If you changed the scripts, or want to verify the install and sync flow locally first, run this from the project root:
 
 ```bash
 bash scripts/dev-smoke-test.sh
@@ -212,9 +246,9 @@ The script checks:
 
 ---
 
-## Pre-release Checklist
+## Recommended Verification Checklist
 
-If you plan to publish this project or ask others to try it, verify at least the following:
+If you plan to use this against a real config repository, verify at least the following:
 
 - Run `bash scripts/dev-smoke-test.sh` locally first
 - Run one full end-to-end flow with a **GitHub private repository** first, so you do not accidentally sync sensitive configs into a public repo
