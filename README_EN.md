@@ -1,4 +1,4 @@
-# cli-config-sync
+# ai-cli-config-sync
 
 Sync your AI CLI tool configurations to GitHub/Gitee — one command to share configs across machines.
 
@@ -23,7 +23,7 @@ Then you switch machines... and it's all gone. 😩
 
 ## The Solution
 
-**cli-config-sync** syncs your CLI configs to a private Git repo (GitHub or Gitee). On any new machine, restore everything with one sentence.
+**ai-cli-config-sync** syncs your CLI configs to a private Git repo (GitHub or Gitee). On any new machine, restore everything with one sentence.
 
 ```
 You: setup config sync
@@ -47,29 +47,29 @@ Recommended usage:
 ### Option 1: One-line install (recommended)
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh)
 ```
 
 Notes:
 
-- Running `curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh` by itself only prints the script contents; it does not install anything
+- Running `curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh` by itself only prints the script contents; it does not install anything
 - You must pass the script to `bash`; the command above works in **Git Bash / WSL / Linux / macOS**
 - If process substitution is awkward in **Windows Git Bash**, you can also use:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash
 ```
 
 - If you are starting from **Windows cmd**, call Git Bash explicitly:
 
 ```cmd
-"C:\Program Files\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh | bash"
+"C:\Program Files\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash"
 ```
 
 - If you are starting from **Windows PowerShell**, use:
 
 ```powershell
-& "C:\Program Files\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh | bash"
+& "C:\Program Files\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash"
 ```
 
 - If you run the installer inside **WSL**, configs are installed into WSL's own `~/.claude` / `~/.codex` / `~/.copilot`, not your Windows user profile
@@ -77,8 +77,8 @@ curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/ins
 ### Option 2: Clone and install
 
 ```bash
-git clone https://github.com/yibing1996/cli-config-sync.git
-cd cli-config-sync
+git clone https://github.com/yibing1996/ai-cli-config-sync.git
+cd ai-cli-config-sync
 bash install.sh
 ```
 
@@ -128,8 +128,8 @@ To avoid deleting local-only Skills / Rules / Memories during a mirror-style pul
 
 ```bash
 # 1. Install CLI tools (as usual)
-# 2. Install cli-config-sync
-bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh)
+# 2. Install ai-cli-config-sync
+bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh)
 # 3. In your CLI, say:
 #    "setup config sync" → enter your repo URL → configs restored
 ```

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# install.sh — cli-config-sync 一键安装脚本
-# 用法：bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh)
+# install.sh — ai-cli-config-sync 一键安装脚本
+# 用法：bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh)
 #   或：bash install.sh（在项目目录下运行）
 
 set -e
@@ -19,18 +19,21 @@ err()  { echo -e "${RED}❌ $*${NC}"; exit 1; }
 
 # ── 定位源文件 ────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CLAUDE_SKILL_SRC="$SCRIPT_DIR/skills/cli-config-sync/SKILL.md"
-CODEX_SKILL_SRC="$SCRIPT_DIR/skills/cli-config-sync-codex/SKILL.md"
+CLAUDE_SKILL_SRC="$SCRIPT_DIR/skills/ai-cli-config-sync/SKILL.md"
+CODEX_SKILL_SRC="$SCRIPT_DIR/skills/ai-cli-config-sync-codex/SKILL.md"
 PUSH_SH_SRC="$SCRIPT_DIR/scripts/push.sh"
 PULL_SH_SRC="$SCRIPT_DIR/scripts/pull.sh"
+
+SKILL_NAME="ai-cli-config-sync"
+LEGACY_SKILL_NAME="cli-config-sync"
 
 # 如果通过 curl 运行，从 GitHub 下载文件
 if [ ! -f "$CLAUDE_SKILL_SRC" ]; then
   info "检测到远程安装模式，从 GitHub 下载文件..."
   TMPDIR_CLI=$(mktemp -d)
-  REPO_URL="https://raw.githubusercontent.com/yibing1996/cli-config-sync/main"
+  REPO_URL="https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main"
 
-  mkdir -p "$TMPDIR_CLI/skills/cli-config-sync" "$TMPDIR_CLI/skills/cli-config-sync-codex" "$TMPDIR_CLI/scripts"
+  mkdir -p "$TMPDIR_CLI/skills/ai-cli-config-sync" "$TMPDIR_CLI/skills/ai-cli-config-sync-codex" "$TMPDIR_CLI/scripts"
 
   _download() {
     local path="$1" dest="$2"
@@ -41,21 +44,21 @@ if [ ! -f "$CLAUDE_SKILL_SRC" ]; then
     fi
   }
 
-  _download "skills/cli-config-sync/SKILL.md" "$TMPDIR_CLI/skills/cli-config-sync/SKILL.md"
-  _download "skills/cli-config-sync-codex/SKILL.md" "$TMPDIR_CLI/skills/cli-config-sync-codex/SKILL.md"
+  _download "skills/ai-cli-config-sync/SKILL.md" "$TMPDIR_CLI/skills/ai-cli-config-sync/SKILL.md"
+  _download "skills/ai-cli-config-sync-codex/SKILL.md" "$TMPDIR_CLI/skills/ai-cli-config-sync-codex/SKILL.md"
   _download "scripts/push.sh" "$TMPDIR_CLI/scripts/push.sh"
   _download "scripts/pull.sh" "$TMPDIR_CLI/scripts/pull.sh"
 
-  [ -f "$TMPDIR_CLI/skills/cli-config-sync/SKILL.md" ] || err "下载失败，请检查网络或访问 GitHub"
+  [ -f "$TMPDIR_CLI/skills/ai-cli-config-sync/SKILL.md" ] || err "下载失败，请检查网络或访问 GitHub"
 
-  CLAUDE_SKILL_SRC="$TMPDIR_CLI/skills/cli-config-sync/SKILL.md"
-  CODEX_SKILL_SRC="$TMPDIR_CLI/skills/cli-config-sync-codex/SKILL.md"
+  CLAUDE_SKILL_SRC="$TMPDIR_CLI/skills/ai-cli-config-sync/SKILL.md"
+  CODEX_SKILL_SRC="$TMPDIR_CLI/skills/ai-cli-config-sync-codex/SKILL.md"
   PUSH_SH_SRC="$TMPDIR_CLI/scripts/push.sh"
   PULL_SH_SRC="$TMPDIR_CLI/scripts/pull.sh"
 fi
 
 echo ""
-echo "🚀 cli-config-sync 安装程序"
+echo "🚀 ai-cli-config-sync 安装程序"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
@@ -89,9 +92,13 @@ if [ -d "$HOME/.claude" ]; then
 else
   info "未检测到 ~/.claude/ 目录，将自动创建（Claude Code 首次运行后即可使用 Skill）"
 fi
-mkdir -p "$CLAUDE_SKILLS_DIR/cli-config-sync"
-cp "$CLAUDE_SKILL_SRC" "$CLAUDE_SKILLS_DIR/cli-config-sync/SKILL.md"
-ok "已安装 Skill → $CLAUDE_SKILLS_DIR/cli-config-sync/SKILL.md"
+if [ -d "$CLAUDE_SKILLS_DIR/$LEGACY_SKILL_NAME" ] && [ "$LEGACY_SKILL_NAME" != "$SKILL_NAME" ]; then
+  rm -rf "$CLAUDE_SKILLS_DIR/$LEGACY_SKILL_NAME"
+  info "已移除旧版 Skill 目录 → $CLAUDE_SKILLS_DIR/$LEGACY_SKILL_NAME"
+fi
+mkdir -p "$CLAUDE_SKILLS_DIR/$SKILL_NAME"
+cp "$CLAUDE_SKILL_SRC" "$CLAUDE_SKILLS_DIR/$SKILL_NAME/SKILL.md"
+ok "已安装 Skill → $CLAUDE_SKILLS_DIR/$SKILL_NAME/SKILL.md"
 INSTALLED=$((INSTALLED + 1))
 
 # GitHub Copilot CLI
@@ -108,14 +115,18 @@ if [ -d "$HOME/.codex" ]; then
 else
   info "未检测到 ~/.codex/ 目录，将自动创建（CLI 首次运行后即可使用 Skill）"
 fi
+if [ -d "$CODEX_SKILLS_DIR/$LEGACY_SKILL_NAME" ] && [ "$LEGACY_SKILL_NAME" != "$SKILL_NAME" ]; then
+  rm -rf "$CODEX_SKILLS_DIR/$LEGACY_SKILL_NAME"
+  info "已移除旧版 Skill 目录 → $CODEX_SKILLS_DIR/$LEGACY_SKILL_NAME"
+fi
 if [ -f "$CODEX_SKILL_SRC" ]; then
-  mkdir -p "$CODEX_SKILLS_DIR/cli-config-sync"
-  cp "$CODEX_SKILL_SRC" "$CODEX_SKILLS_DIR/cli-config-sync/SKILL.md"
-  ok "已安装 Skill → $CODEX_SKILLS_DIR/cli-config-sync/SKILL.md"
+  mkdir -p "$CODEX_SKILLS_DIR/$SKILL_NAME"
+  cp "$CODEX_SKILL_SRC" "$CODEX_SKILLS_DIR/$SKILL_NAME/SKILL.md"
+  ok "已安装 Skill → $CODEX_SKILLS_DIR/$SKILL_NAME/SKILL.md"
 else
-  mkdir -p "$CODEX_SKILLS_DIR/cli-config-sync"
-  cp "$CLAUDE_SKILL_SRC" "$CODEX_SKILLS_DIR/cli-config-sync/SKILL.md"
-  ok "已安装 Skill → $CODEX_SKILLS_DIR/cli-config-sync/SKILL.md（使用通用版本）"
+  mkdir -p "$CODEX_SKILLS_DIR/$SKILL_NAME"
+  cp "$CLAUDE_SKILL_SRC" "$CODEX_SKILLS_DIR/$SKILL_NAME/SKILL.md"
+  ok "已安装 Skill → $CODEX_SKILLS_DIR/$SKILL_NAME/SKILL.md（使用通用版本）"
 fi
 INSTALLED=$((INSTALLED + 1))
 
@@ -130,7 +141,7 @@ echo "📖 使用方法："
 echo "   在任意 AI CLI 对话中说：「初始化配置同步」"
 echo "   或：「setup config sync」"
 echo ""
-echo "🔗 更多信息：https://github.com/yibing1996/cli-config-sync"
+echo "🔗 更多信息：https://github.com/yibing1996/ai-cli-config-sync"
 echo ""
 
 # 清理临时目录

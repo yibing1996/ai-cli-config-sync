@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# uninstall.sh — cli-config-sync 卸载脚本
+# uninstall.sh — ai-cli-config-sync 卸载脚本
 
 set -e
 
@@ -11,31 +11,35 @@ ok()   { echo -e "${GREEN}✅ $*${NC}"; }
 warn() { echo -e "${YELLOW}⚠️  $*${NC}"; }
 
 echo ""
-echo "🗑️  cli-config-sync 卸载程序"
+echo "🗑️  ai-cli-config-sync 卸载程序"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
 REMOVED=0
+SKILL_NAME="ai-cli-config-sync"
+LEGACY_SKILL_NAME="cli-config-sync"
 
 # 卸载 GitHub Copilot CLI / Claude Code CLI 版本
-CLAUDE_SKILL="$HOME/.claude/skills/cli-config-sync"
-if [ -d "$CLAUDE_SKILL" ]; then
-  rm -rf "$CLAUDE_SKILL"
-  ok "已卸载：$CLAUDE_SKILL"
-  REMOVED=$((REMOVED + 1))
-else
-  warn "未找到：$CLAUDE_SKILL（已卸载或未安装）"
-fi
+for CLAUDE_SKILL in "$HOME/.claude/skills/$SKILL_NAME" "$HOME/.claude/skills/$LEGACY_SKILL_NAME"; do
+  if [ -d "$CLAUDE_SKILL" ]; then
+    rm -rf "$CLAUDE_SKILL"
+    ok "已卸载：$CLAUDE_SKILL"
+    REMOVED=$((REMOVED + 1))
+  else
+    warn "未找到：$CLAUDE_SKILL（已卸载或未安装）"
+  fi
+done
 
 # 卸载 Codex CLI 版本
-CODEX_SKILL="$HOME/.codex/skills/cli-config-sync"
-if [ -d "$CODEX_SKILL" ]; then
-  rm -rf "$CODEX_SKILL"
-  ok "已卸载：$CODEX_SKILL"
-  REMOVED=$((REMOVED + 1))
-else
-  warn "未找到：$CODEX_SKILL（已卸载或未安装）"
-fi
+for CODEX_SKILL in "$HOME/.codex/skills/$SKILL_NAME" "$HOME/.codex/skills/$LEGACY_SKILL_NAME"; do
+  if [ -d "$CODEX_SKILL" ]; then
+    rm -rf "$CODEX_SKILL"
+    ok "已卸载：$CODEX_SKILL"
+    REMOVED=$((REMOVED + 1))
+  else
+    warn "未找到：$CODEX_SKILL（已卸载或未安装）"
+  fi
+done
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

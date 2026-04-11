@@ -1,4 +1,4 @@
-# cli-config-sync
+# ai-cli-config-sync
 
 将 AI CLI 工具的配置一键同步到 GitHub/Gitee，跨机器共享配置从未如此简单。
 
@@ -23,7 +23,7 @@
 
 ## 解决方案
 
-**cli-config-sync** 将你的 CLI 配置同步到一个私有 Git 仓库（GitHub 或 Gitee），在任意新机器上一句话就能还原所有配置。
+**ai-cli-config-sync** 将你的 CLI 配置同步到一个私有 Git 仓库（GitHub 或 Gitee），在任意新机器上一句话就能还原所有配置。
 
 ```
 你说：初始化配置同步
@@ -47,29 +47,29 @@ AI 说：请提供你的 Git 仓库地址...
 ### 方法一：一行命令安装（推荐）
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh)
 ```
 
 说明：
 
-- 单独执行 `curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh` 只会把脚本内容打印到终端，不会自动安装
+- 单独执行 `curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh` 只会把脚本内容打印到终端，不会自动安装
 - 正确做法是把脚本交给 `bash` 执行；在 **Git Bash / WSL / Linux / macOS** 中，上面的写法都可用
 - 如果你在 **Windows Git Bash** 下遇到进程替换兼容问题，也可以这样执行：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash
 ```
 
 - 如果你在 **Windows cmd** 中执行，请显式调用 Git Bash：
 
 ```cmd
-"C:\Program Files\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh | bash"
+"C:\Program Files\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash"
 ```
 
 - 如果你在 **Windows PowerShell** 中执行，请这样调用 Git Bash：
 
 ```powershell
-& "C:\Program Files\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh | bash"
+& "C:\Program Files\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash"
 ```
 
 - 如果你在 **WSL** 中执行，配置会安装到 WSL 自己的 `~/.claude` / `~/.codex` / `~/.copilot`，不会写入 Windows 本机用户目录
@@ -77,8 +77,8 @@ curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/ins
 ### 方法二：clone 后安装
 
 ```bash
-git clone https://github.com/yibing1996/cli-config-sync.git
-cd cli-config-sync
+git clone https://github.com/yibing1996/ai-cli-config-sync.git
+cd ai-cli-config-sync
 bash install.sh
 ```
 
@@ -128,8 +128,8 @@ AI：✅ 初始化完成，智能判断远端状态后自动同步
 
 ```bash
 # 1. 安装 CLI 工具（略）
-# 2. 安装 cli-config-sync
-bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/cli-config-sync/main/install.sh)
+# 2. 安装 ai-cli-config-sync
+bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh)
 # 3. 在 CLI 里说：
 #    「初始化配置同步」→ 输入你的仓库地址 → 配置自动还原
 ```

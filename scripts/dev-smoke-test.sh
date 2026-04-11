@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# dev-smoke-test.sh — 发布前本地快速自测脚本
+# dev-smoke-test.sh — 本地快速自测脚本
 
 set -euo pipefail
 
@@ -48,18 +48,18 @@ run_docs_consistency_check() {
   assert_contains "$ROOT_DIR/README_EN.md" '### GitHub Copilot CLI'
   assert_contains "$ROOT_DIR/README_EN.md" '### Claude Code CLI'
   assert_not_contains "$ROOT_DIR/README_EN.md" '### GitHub Copilot CLI / Claude Code CLI'
-  assert_contains "$ROOT_DIR/skills/cli-config-sync/SKILL.md" '安全同步（先推送，失败即停）'
-  assert_not_contains "$ROOT_DIR/skills/cli-config-sync/SKILL.md" '先 pull 再 push'
-  assert_contains "$ROOT_DIR/skills/cli-config-sync/SKILL.md" '### GitHub Copilot CLI（`~/.copilot/`）'
-  assert_not_contains "$ROOT_DIR/skills/cli-config-sync/SKILL.md" '### GitHub Copilot CLI / Claude Code CLI（`~/.claude/`）'
-  assert_contains "$ROOT_DIR/skills/cli-config-sync/SKILL.md" '_sanitized_diff()'
-  assert_not_contains "$ROOT_DIR/skills/cli-config-sync/SKILL.md" 'for f in copilot-instructions.md config.json mcp-config.json; do'
-  assert_contains "$ROOT_DIR/skills/cli-config-sync-codex/SKILL.md" '安全同步（先推送，失败即停）'
-  assert_not_contains "$ROOT_DIR/skills/cli-config-sync-codex/SKILL.md" '先 pull 再 push'
-  assert_contains "$ROOT_DIR/skills/cli-config-sync-codex/SKILL.md" '### GitHub Copilot CLI（`~/.copilot/`）'
-  assert_not_contains "$ROOT_DIR/skills/cli-config-sync-codex/SKILL.md" '### GitHub Copilot CLI / Claude Code CLI（`~/.claude/`）'
-  assert_contains "$ROOT_DIR/skills/cli-config-sync-codex/SKILL.md" '_sanitized_diff()'
-  assert_not_contains "$ROOT_DIR/skills/cli-config-sync-codex/SKILL.md" 'for f in copilot-instructions.md config.json mcp-config.json; do'
+  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '安全同步（先推送，失败即停）'
+  assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '先 pull 再 push'
+  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '### GitHub Copilot CLI（`~/.copilot/`）'
+  assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '### GitHub Copilot CLI / Claude Code CLI（`~/.claude/`）'
+  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '_sanitized_diff()'
+  assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" 'for f in copilot-instructions.md config.json mcp-config.json; do'
+  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '安全同步（先推送，失败即停）'
+  assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '先 pull 再 push'
+  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '### GitHub Copilot CLI（`~/.copilot/`）'
+  assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '### GitHub Copilot CLI / Claude Code CLI（`~/.claude/`）'
+  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '_sanitized_diff()'
+  assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" 'for f in copilot-instructions.md config.json mcp-config.json; do'
 }
 
 run_install_smoke() {
@@ -72,8 +72,8 @@ run_install_smoke() {
 
   assert_file "$home/.cli-sync/push.sh"
   assert_file "$home/.cli-sync/pull.sh"
-  assert_file "$home/.claude/skills/cli-config-sync/SKILL.md"
-  assert_file "$home/.codex/skills/cli-config-sync/SKILL.md"
+  assert_file "$home/.claude/skills/ai-cli-config-sync/SKILL.md"
+  assert_file "$home/.codex/skills/ai-cli-config-sync/SKILL.md"
 
   rm -rf "$tmpdir"
 }

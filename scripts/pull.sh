@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # pull.sh — 从 Git 仓库拉取配置并还原到本地
-# 由 cli-config-sync 安装到 ~/.cli-sync/pull.sh
+# 由 ai-cli-config-sync 安装到 ~/.cli-sync/pull.sh
 #
 # 核心策略：拉取远端配置覆盖本地，但保留本机私有字段：
 #   - settings.json 的 env 字段（API Token）

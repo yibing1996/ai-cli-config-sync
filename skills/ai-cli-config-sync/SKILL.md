@@ -1,15 +1,13 @@
 ---
-name: cli-config-sync
-description: 将 AI CLI 工具（Codex CLI、Claude Code CLI、GitHub Copilot CLI）的配置同步到 Git 仓库（GitHub/Gitee）。支持跨机器一键同步 AGENTS.md、CLAUDE.md、Skills、MCP 配置等，自动过滤敏感字段。Use this skill when user mentions syncing CLI configs, setup config sync, push/pull configs, or auto sync.
+name: ai-cli-config-sync
+description: 将 AI CLI 工具（Claude Code CLI、GitHub Copilot CLI、Codex CLI）的配置同步到 Git 仓库（GitHub/Gitee）。支持跨机器一键同步 CLAUDE.md、AGENTS.md、Skills、MCP 配置等，自动过滤敏感字段。Use this skill when user mentions syncing CLI configs, setup config sync, push/pull configs, or auto sync.
 ---
 
-# CLI 配置云同步（Codex CLI 版）
+# CLI 配置云同步
 
 ## 功能说明
 
 将多个 AI CLI 工具的配置文件同步到 Git 仓库，实现跨机器配置共享。支持 GitHub、Gitee 等任意 Git 托管服务。
-
-> 本 Skill 与通用版工作流保持一致，仅在工具调用方式上适配 Codex CLI。
 
 ## 触发关键词
 
@@ -25,20 +23,6 @@ description: 将 AI CLI 工具（Codex CLI、Claude Code CLI、GitHub Copilot CL
 ---
 
 ## 同步范围
-
-### Codex CLI（`~/.codex/`）
-
-**同步：**
-- `AGENTS.md` — Agent 指令文件
-- `config.toml` — 自动过滤 `[projects.*]` 段（本机路径）和 `env` 字段（可能含 Token），其余保留
-- `skills/` — 全部自定义 Skill（镜像同步，含删除）
-- `rules/` — 规则文件
-- `memories/` — AI 记忆文件
-
-**不同步：**
-- `auth.json` — 登录 Token（各机器独立登录）
-- `vendor_imports/` — 系统自带 Skill 库（可重新安装）
-- `*.sqlite*`、`logs_*`、`state_*`、`cache/`、`sessions/`、`archived_sessions/`、`tmp/`、`.tmp/`
 
 ### GitHub Copilot CLI（`~/.copilot/`）
 
@@ -63,6 +47,20 @@ description: 将 AI CLI 工具（Codex CLI、Claude Code CLI、GitHub Copilot CL
 **不同步：**
 - `plugins/marketplaces/` — marketplace 缓存（可重新下载）
 - `history.jsonl`、`sessions/`、`cache/`、`debug/`、`downloads/`、`telemetry/`
+
+### Codex CLI（`~/.codex/`）
+
+**同步：**
+- `AGENTS.md` — Agent 指令文件
+- `config.toml` — 自动过滤 `[projects.*]` 段（本机路径）和 `env` 字段（可能含 Token），其余保留
+- `skills/` — 全部自定义 Skill（镜像同步，含删除）
+- `rules/` — 规则文件
+- `memories/` — AI 记忆文件
+
+**不同步：**
+- `auth.json` — 登录 Token（各机器独立登录）
+- `vendor_imports/` — 系统自带 Skill 库（可重新安装）
+- `*.sqlite*`、`logs_*`、`state_*`、`cache/`、`sessions/`、`archived_sessions/`、`tmp/`、`.tmp/`
 
 ---
 
@@ -283,12 +281,12 @@ fi
 LOG_FILE="$HOME/.cli-sync/auto-sync.log"
 
 # 幂等检查：已存在则跳过
-if grep -q 'cli-config-sync-hook-start' "$SHELL_RC" 2>/dev/null; then
+if grep -q 'ai-cli-config-sync-hook-start' "$SHELL_RC" 2>/dev/null; then
   echo "ℹ️  自动同步 hook 已存在于 $SHELL_RC，无需重复添加"
 else
   cat >> "$SHELL_RC" << 'HOOKEOF'
 
-# >>> cli-config-sync-hook-start >>>
+# >>> ai-cli-config-sync-hook-start >>>
 if [ -f "$HOME/.cli-sync/config.yml" ] && [ -f "$HOME/.cli-sync/pull.sh" ]; then
   mkdir -p "$HOME/.cli-sync"
   LOG_FILE="$HOME/.cli-sync/auto-sync.log"
@@ -309,10 +307,10 @@ _cli_sync_push_on_exit() {
   fi
 }
 trap _cli_sync_push_on_exit EXIT
-# <<< cli-config-sync-hook-end <<<
+# <<< ai-cli-config-sync-hook-end <<<
 HOOKEOF
   echo "✅ 自动同步 hook 已写入 $SHELL_RC"
-  echo "💡 编辑 ~/.cli-sync/config.yml 将 auto_pull 和/或 auto_push 设为 true 来启用"
+  echo "💡 请编辑 ~/.cli-sync/config.yml 将 auto_pull 和/或 auto_push 设为 true 来启用"
 fi
 ```
 
@@ -400,6 +398,7 @@ PYEOF
 
 echo "=== Git 状态 ==="
 cd "$REPO" && git status --short
+
 echo ""
 echo "=== 最近提交 ==="
 git log --oneline -5
@@ -423,6 +422,14 @@ if _sanitized_diff "copilot-mcp" "$HOME/.copilot/mcp-config.json" "$REPO/copilot
   echo "  📝 copilot/mcp-config.json 有本地未推送的共享配置修改"
   CHANGED=1
 fi
+for f in CLAUDE.md; do
+  if [ -f "$HOME/.claude/$f" ] && [ -f "$REPO/claude/$f" ]; then
+    if ! diff -q "$HOME/.claude/$f" "$REPO/claude/$f" > /dev/null 2>&1; then
+      echo "  📝 claude/$f 有本地未推送的修改"
+      CHANGED=1
+    fi
+  fi
+done
 for f in AGENTS.md; do
   if [ -f "$HOME/.codex/$f" ] && [ -f "$REPO/codex/$f" ]; then
     if ! diff -q "$HOME/.codex/$f" "$REPO/codex/$f" > /dev/null 2>&1; then
@@ -435,14 +442,6 @@ if _sanitized_diff "codex-config" "$HOME/.codex/config.toml" "$REPO/codex/config
   echo "  📝 codex/config.toml 有本地未推送的共享配置修改"
   CHANGED=1
 fi
-for f in CLAUDE.md; do
-  if [ -f "$HOME/.claude/$f" ] && [ -f "$REPO/claude/$f" ]; then
-    if ! diff -q "$HOME/.claude/$f" "$REPO/claude/$f" > /dev/null 2>&1; then
-      echo "  📝 claude/$f 有本地未推送的修改"
-      CHANGED=1
-    fi
-  fi
-done
 [ $CHANGED -eq 0 ] && echo "  ✅ 所有核心配置文件与仓库一致"
 ```
 
@@ -470,4 +469,4 @@ done
 4. `settings.json` 的 `env` 字段（含 API Token）**自动过滤**，还原后需手动重设
 5. `config.toml` 的 `[projects.*]` 段（本机路径）和 `env` 字段（可能含 Token）**自动过滤**
 6. `auth.json` **永远不同步**，每台机器需独立登录
-7. 新机器 Pull 后请检查 `config.toml` 中 MCP server 的命令路径是否适配本机
+7. 新机器 Pull 后请检查 `config.toml` 中 MCP server 的命令路径（如 `/home/user/.nvm/...`）是否适配本机

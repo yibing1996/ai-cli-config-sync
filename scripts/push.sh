@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # push.sh — 将本地 CLI 配置推送到 Git 仓库
-# 由 cli-config-sync 安装到 ~/.cli-sync/push.sh
+# 由 ai-cli-config-sync 安装到 ~/.cli-sync/push.sh
 set -e
 
 CONFIG_FILE="$HOME/.cli-sync/config.yml"
