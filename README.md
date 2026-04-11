@@ -46,38 +46,37 @@ AI 说：请提供你的 Git 仓库地址...
 
 ### 方法一：一行命令安装（推荐）
 
+**Git Bash / WSL / Linux / macOS：**
+
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh)
 ```
 
-说明：
-
-- 单独执行 `curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh` 只会把脚本内容打印到终端，不会自动安装
-- 正确做法是把脚本交给 `bash` 执行；在 **Git Bash / WSL / Linux / macOS** 中，上面的写法都可用
-- 如果你在 **Windows Git Bash** 下遇到进程替换兼容问题，也可以这样执行：
+如果你在 **Windows Git Bash** 下遇到进程替换兼容问题，也可以这样执行：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash
 ```
 
-- 如果你在 **Windows cmd** 中执行，请显式调用 Git Bash：
-
-```cmd
-powershell -NoProfile -Command "$gitRoot = Split-Path (Split-Path (Get-Command git).Source -Parent) -Parent; & (Join-Path $gitRoot 'bin\bash.exe') -lc 'curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash'"
-```
-
-- 这条命令会先用 `Get-Command git` 动态找到你的 Git 安装位置，再自动拼出对应的 `bin\bash.exe`
-- 如果你只想确认 Git 的实际路径，也可以先在 `cmd` 中执行 `where git`
-
-- 如果你在 **Windows PowerShell** 中执行，请这样调用 Git Bash：
+**Windows PowerShell：**
 
 ```powershell
- $gitRoot = Split-Path (Split-Path (Get-Command git).Source -Parent) -Parent
- & (Join-Path $gitRoot 'bin\bash.exe') -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash"
+$tmp = Join-Path $env:TEMP "ai-cli-config-sync-install.ps1"
+Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.ps1" -OutFile $tmp
+& $tmp
 ```
 
-- 这条写法同样不依赖固定安装路径；如果你想先确认探测结果，可以单独执行 `(Get-Command git).Source`
+**Windows cmd：**
 
+```cmd
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$tmp = Join-Path $env:TEMP 'ai-cli-config-sync-install.ps1'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.ps1' -OutFile $tmp; & $tmp"
+```
+
+说明：
+
+- 单独执行 `curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh` 只会把脚本内容打印到终端，不会自动安装
+- Windows 原生终端推荐走 `install.ps1`；它会自动定位 **Git for Windows 自带的 Git Bash**，避免误用 `C:\Windows\System32\bash.exe` 把流程送进 WSL
+- 如果你只想确认 Git 的实际路径，可以在 `cmd` 中执行 `where git`，或在 PowerShell 中执行 `(Get-Command git).Source`
 - 如果你在 **WSL** 中执行，配置会安装到 WSL 自己的 `~/.claude` / `~/.codex` / `~/.copilot`，不会写入 Windows 本机用户目录
 
 ### 方法二：clone 后安装
@@ -85,14 +84,25 @@ powershell -NoProfile -Command "$gitRoot = Split-Path (Split-Path (Get-Command g
 ```bash
 git clone https://github.com/yibing1996/ai-cli-config-sync.git
 cd ai-cli-config-sync
+```
+
+**Git Bash / WSL / Linux / macOS：**
+
+```bash
 bash install.sh
 ```
 
-Windows / Git Bash 额外说明：
+**Windows PowerShell / cmd：**
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+Windows 额外说明：
 
 - 如果你执行 `bash install.sh` 时看到 `$'\r': command not found`，通常不是脚本逻辑有问题，而是 Git 在 clone 时把 `*.sh` 签出成了 `CRLF`
 - 这个仓库现在已通过 `.gitattributes` 强制 `*.sh` 使用 `LF`；拉取最新版本后重新 clone 一次通常就能恢复正常
-- `git clone` 可以在 `cmd`、PowerShell、Git Bash 中执行，但 `install.sh` 建议在 **Git Bash / WSL / Linux / macOS** 里运行
+- `git clone` 可以在 `cmd`、PowerShell、Git Bash 中执行；Windows 原生终端推荐直接运行 `install.ps1`
 - 如果你想在当前目录先临时修复，也可以执行：
 
 ```bash
@@ -100,7 +110,7 @@ sed -i 's/\r$//' install.sh scripts/*.sh
 bash install.sh
 ```
 
-安装脚本会安装核心脚本，并在 `~/.claude` / `~/.codex` 下写入 Skill；`~/.copilot` 不写入 Skill，但后续 `push.sh` / `pull.sh` 会自动识别并同步受支持的 Copilot 配置。目录不存在时会自动创建。
+安装脚本会把 `install.*`、`setup.*`、`push.*`、`pull.*`、`sync.*`、`status.*`、`enable-auto-sync.*` 安装到 `~/.cli-sync/`，并在 `~/.claude` / `~/.codex` 下写入 Skill；`~/.copilot` 不写入 Skill，但后续 `push.sh` / `pull.sh` 会自动识别并同步受支持的 Copilot 配置。目录不存在时会自动创建。
 
 ---
 
@@ -212,17 +222,17 @@ auto_push: false   # 设为 true：shell 退出时自动 push
 
 ## 已知限制
 
-- 当前主要在 **GitHub + Bash/Linux/WSL 风格环境** 下验证；Gitee 与其他环境建议先自行回归测试
+- 当前主要在 **GitHub + WSL / Git Bash / Linux / macOS / Windows PowerShell** 环境下验证；Gitee 与其他环境建议先自行回归测试
 - 自动同步使用保守的快进策略；如果本地同步仓库存在分叉、未提交变更或未推送提交，自动拉取会停止而不是强行合并
 - `auth.json`、`vendor_imports/`、数据库、会话、缓存等本机运行数据不会同步
 - 恢复后请手动检查 `config.toml` 与 `~/.copilot/mcp-config.json` 中和本机路径强相关的 MCP 命令、解释器路径、工作目录等配置
-- Windows 环境建议优先使用 **Git Bash** 执行安装与同步命令，并确保仓库中的 `*.sh` 文件保持 `LF` 行尾
+- Windows 原生终端现已支持通过 `install.ps1`、`push.ps1`、`pull.ps1` 等包装脚本运行；如需直接运行 `*.sh`，仍建议使用 Git Bash，并确保仓库中的 `*.sh` 文件保持 `LF` 行尾
 
 ---
 
 ## 系统要求
 
-- `bash`（必须）
+- `bash`（必须；Windows 建议安装 Git for Windows，自带 Git Bash）
 - `git`（必须）
 - `jq` 或 `python3`（推荐，用于过滤 settings.json / config.toml 敏感字段，以及 Pull 时智能合并）
 - `rsync`（可选，用于高效目录同步；无则自动降级为 cp）

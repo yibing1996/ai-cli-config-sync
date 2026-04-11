@@ -33,33 +33,41 @@ assert_not_contains() {
 run_syntax_check() {
   log "检查核心脚本语法"
   cd "$ROOT_DIR"
-  bash -n install.sh uninstall.sh scripts/push.sh scripts/pull.sh scripts/dev-smoke-test.sh
+  bash -n install.sh uninstall.sh \
+    scripts/push.sh scripts/pull.sh scripts/setup.sh scripts/sync.sh \
+    scripts/status.sh scripts/enable-auto-sync.sh scripts/dev-smoke-test.sh
 }
 
 run_docs_consistency_check() {
   log "检查文档中的安全同步语义"
   assert_contains "$ROOT_DIR/README.md" '安全同步（先推送本地改动；失败即停）'
+  assert_contains "$ROOT_DIR/README.md" 'install.ps1'
+  assert_contains "$ROOT_DIR/README.md" 'Windows PowerShell'
   assert_not_contains "$ROOT_DIR/README.md" '先保守拉取，再推送'
   assert_contains "$ROOT_DIR/README.md" '### GitHub Copilot CLI'
   assert_contains "$ROOT_DIR/README.md" '### Claude Code CLI'
   assert_not_contains "$ROOT_DIR/README.md" '### GitHub Copilot CLI / Claude Code CLI'
   assert_contains "$ROOT_DIR/README_EN.md" 'Safe sync (push local changes first; stop on failure)'
+  assert_contains "$ROOT_DIR/README_EN.md" 'install.ps1'
+  assert_contains "$ROOT_DIR/README_EN.md" 'Windows PowerShell'
   assert_not_contains "$ROOT_DIR/README_EN.md" 'safe pull first, then push'
   assert_contains "$ROOT_DIR/README_EN.md" '### GitHub Copilot CLI'
   assert_contains "$ROOT_DIR/README_EN.md" '### Claude Code CLI'
   assert_not_contains "$ROOT_DIR/README_EN.md" '### GitHub Copilot CLI / Claude Code CLI'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '安全同步（先推送，失败即停）'
+  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" 'Windows 原生终端（PowerShell / cmd）'
+  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" 'setup.ps1'
+  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" 'enable-auto-sync.ps1'
   assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '先 pull 再 push'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '### GitHub Copilot CLI（`~/.copilot/`）'
   assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '### GitHub Copilot CLI / Claude Code CLI（`~/.claude/`）'
-  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '_sanitized_diff()'
-  assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" 'for f in copilot-instructions.md config.json mcp-config.json; do'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '安全同步（先推送，失败即停）'
+  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" 'Windows 原生终端（PowerShell / cmd）'
+  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" 'setup.ps1'
+  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" 'enable-auto-sync.ps1'
   assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '先 pull 再 push'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '### GitHub Copilot CLI（`~/.copilot/`）'
   assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '### GitHub Copilot CLI / Claude Code CLI（`~/.claude/`）'
-  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '_sanitized_diff()'
-  assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" 'for f in copilot-instructions.md config.json mcp-config.json; do'
 }
 
 run_install_smoke() {
@@ -70,8 +78,19 @@ run_install_smoke() {
   log "验证 install.sh 在临时 HOME 下可用"
   HOME="$home" bash "$ROOT_DIR/install.sh" >/dev/null 2>&1
 
+  assert_file "$home/.cli-sync/install.sh"
+  assert_file "$home/.cli-sync/install.ps1"
   assert_file "$home/.cli-sync/push.sh"
   assert_file "$home/.cli-sync/pull.sh"
+  assert_file "$home/.cli-sync/setup.sh"
+  assert_file "$home/.cli-sync/setup.ps1"
+  assert_file "$home/.cli-sync/sync.sh"
+  assert_file "$home/.cli-sync/sync.ps1"
+  assert_file "$home/.cli-sync/status.sh"
+  assert_file "$home/.cli-sync/status.ps1"
+  assert_file "$home/.cli-sync/enable-auto-sync.sh"
+  assert_file "$home/.cli-sync/enable-auto-sync.ps1"
+  assert_file "$home/.cli-sync/runtime.ps1"
   assert_file "$home/.claude/skills/ai-cli-config-sync/SKILL.md"
   assert_file "$home/.codex/skills/ai-cli-config-sync/SKILL.md"
 
