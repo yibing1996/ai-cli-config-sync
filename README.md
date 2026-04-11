@@ -63,13 +63,13 @@ curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/
 ```powershell
 $tmp = Join-Path $env:TEMP "ai-cli-config-sync-install.ps1"
 Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.ps1" -OutFile $tmp
-powershell -NoProfile -ExecutionPolicy Bypass -File $tmp
+powershell -NoProfile -ExecutionPolicy Bypass -File "$tmp"
 ```
 
 **Windows cmd：**
 
 ```cmd
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$tmp = Join-Path $env:TEMP 'ai-cli-config-sync-install.ps1'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.ps1' -OutFile $tmp; & $tmp"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$tmp = Join-Path $env:TEMP 'ai-cli-config-sync-install.ps1'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.ps1' -OutFile $tmp; powershell -NoProfile -ExecutionPolicy Bypass -File `"$tmp`""
 ```
 
 说明：
