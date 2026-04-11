@@ -66,10 +66,30 @@ curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/
 "C:\Program Files\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash"
 ```
 
+- The `C:\Program Files\Git\bin\bash.exe` path above is only the **default installation path**. If Git is installed elsewhere, run `where git` first
+- For example, if `where git` prints `E:\software\Git\cmd\git.exe`, the matching Git Bash path is usually `E:\software\Git\bin\bash.exe`
+- In that case, use:
+
+```cmd
+"E:\software\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash"
+```
+
 - If you are starting from **Windows PowerShell**, use:
 
 ```powershell
 & "C:\Program Files\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash"
+```
+
+- If Git is not installed in the default location, run:
+
+```powershell
+(Get-Command git).Source
+```
+
+- For example, if it prints `E:\software\Git\cmd\git.exe`, use:
+
+```powershell
+& "E:\software\Git\bin\bash.exe" -lc "curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh | bash"
 ```
 
 - If you run the installer inside **WSL**, configs are installed into WSL's own `~/.claude` / `~/.codex` / `~/.copilot`, not your Windows user profile
