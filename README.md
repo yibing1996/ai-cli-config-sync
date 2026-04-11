@@ -63,7 +63,7 @@ curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/
 ```powershell
 $tmp = Join-Path $env:TEMP "ai-cli-config-sync-install.ps1"
 Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.ps1" -OutFile $tmp
-& $tmp
+powershell -NoProfile -ExecutionPolicy Bypass -File $tmp
 ```
 
 **Windows cmd：**
@@ -76,6 +76,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "$tmp = Join-Path $env:TE
 
 - 单独执行 `curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh` 只会把脚本内容打印到终端，不会自动安装
 - Windows 原生终端推荐走 `install.ps1`；它会自动定位 **Git for Windows 自带的 Git Bash**，避免误用 `C:\Windows\System32\bash.exe` 把流程送进 WSL
+- 如果当前 PowerShell 会话启用了脚本执行限制，请用 `powershell -NoProfile -ExecutionPolicy Bypass -File $tmp` 启动下载后的安装脚本，而不要直接 `& $tmp`
 - 如果你只想确认 Git 的实际路径，可以在 `cmd` 中执行 `where git`，或在 PowerShell 中执行 `(Get-Command git).Source`
 - 如果你在 **WSL** 中执行，配置会安装到 WSL 自己的 `~/.claude` / `~/.codex` / `~/.copilot`，不会写入 Windows 本机用户目录
 

@@ -63,7 +63,7 @@ curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/
 ```powershell
 $tmp = Join-Path $env:TEMP "ai-cli-config-sync-install.ps1"
 Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.ps1" -OutFile $tmp
-& $tmp
+powershell -NoProfile -ExecutionPolicy Bypass -File $tmp
 ```
 
 **Windows cmd:**
@@ -76,6 +76,7 @@ Notes:
 
 - Running `curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh` by itself only prints the script contents; it does not install anything
 - Native Windows shells should use `install.ps1`; it resolves **Git for Windows' Git Bash** automatically and avoids accidentally going through `C:\Windows\System32\bash.exe` into WSL
+- If the current PowerShell session blocks script execution, launch the downloaded installer with `powershell -NoProfile -ExecutionPolicy Bypass -File $tmp` instead of running `& $tmp` directly
 - If you only want to inspect the detected Git path first, run `where git` from `cmd` or `(Get-Command git).Source` from PowerShell
 - If you run the installer inside **WSL**, configs are installed into WSL's own `~/.claude` / `~/.codex` / `~/.copilot`, not your Windows user profile
 
