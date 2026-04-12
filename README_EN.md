@@ -62,21 +62,29 @@ curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/
 
 ```powershell
 $tmp = Join-Path $env:TEMP "ai-cli-config-sync-install.ps1"
+Remove-Item -Path $tmp -Force -ErrorAction SilentlyContinue
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.ps1" -OutFile $tmp
-powershell -NoProfile -ExecutionPolicy Bypass -File "$tmp"
+if (-not (Test-Path $tmp)) { throw "Failed to download install.ps1" }
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$tmp"
 ```
 
 **Windows cmd:**
 
 ```cmd
 set "AI_CLI_SYNC_INSTALL_PS1=%TEMP%\ai-cli-config-sync-install.ps1"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.ps1' -OutFile '%AI_CLI_SYNC_INSTALL_PS1%'"
+if exist "%AI_CLI_SYNC_INSTALL_PS1%" del /f /q "%AI_CLI_SYNC_INSTALL_PS1%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.ps1' -OutFile '%AI_CLI_SYNC_INSTALL_PS1%'"
+if errorlevel 1 exit /b 1
+if not exist "%AI_CLI_SYNC_INSTALL_PS1%" exit /b 1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%AI_CLI_SYNC_INSTALL_PS1%"
 ```
 
 Notes:
 
 - Running `curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh` by itself only prints the script contents; it does not install anything
+- Some Windows PowerShell 5.1 sessions start without `Tls12`; the PowerShell/cmd download snippets above explicitly enable it before contacting `raw.githubusercontent.com`
+- The Windows download snippets remove any old temp installer first and verify the new file exists before executing it, so a failed download cannot accidentally run a stale copy from `%TEMP%`
 - Native Windows shells should use `install.ps1`; it resolves **Git for Windows' Git Bash** automatically and avoids accidentally going through `C:\Windows\System32\bash.exe` into WSL
 - The downloaded `install.ps1` stages the full install payload through PowerShell before invoking Git Bash, so native Windows shells do not depend on extra Bash-side downloads
 - If the current PowerShell session blocks script execution, launch the downloaded installer with `powershell -NoProfile -ExecutionPolicy Bypass -File $tmp` instead of running `& $tmp` directly

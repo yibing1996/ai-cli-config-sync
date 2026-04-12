@@ -13,6 +13,13 @@ function Resolve-PayloadPath {
   return Join-Path $BasePath ($RelativePath -replace '/', '\')
 }
 
+function Enable-Tls12ForDownloads {
+  $tls12 = [Net.SecurityProtocolType]::Tls12
+  if (([Net.ServicePointManager]::SecurityProtocol -band $tls12) -ne $tls12) {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor $tls12
+  }
+}
+
 function Invoke-DownloadFile {
   param(
     [Parameter(Mandatory = $true)]
@@ -27,6 +34,7 @@ function Invoke-DownloadFile {
     New-Item -ItemType Directory -Path $destinationDir -Force | Out-Null
   }
 
+  Enable-Tls12ForDownloads
   Invoke-WebRequest -UseBasicParsing $Url -OutFile $DestinationPath
 }
 

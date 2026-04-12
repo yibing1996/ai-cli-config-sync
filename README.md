@@ -62,21 +62,29 @@ curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/
 
 ```powershell
 $tmp = Join-Path $env:TEMP "ai-cli-config-sync-install.ps1"
+Remove-Item -Path $tmp -Force -ErrorAction SilentlyContinue
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.ps1" -OutFile $tmp
-powershell -NoProfile -ExecutionPolicy Bypass -File "$tmp"
+if (-not (Test-Path $tmp)) { throw "Failed to download install.ps1" }
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$tmp"
 ```
 
 **Windows cmd：**
 
 ```cmd
 set "AI_CLI_SYNC_INSTALL_PS1=%TEMP%\ai-cli-config-sync-install.ps1"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.ps1' -OutFile '%AI_CLI_SYNC_INSTALL_PS1%'"
+if exist "%AI_CLI_SYNC_INSTALL_PS1%" del /f /q "%AI_CLI_SYNC_INSTALL_PS1%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.ps1' -OutFile '%AI_CLI_SYNC_INSTALL_PS1%'"
+if errorlevel 1 exit /b 1
+if not exist "%AI_CLI_SYNC_INSTALL_PS1%" exit /b 1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%AI_CLI_SYNC_INSTALL_PS1%"
 ```
 
 说明：
 
 - 单独执行 `curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.sh` 只会把脚本内容打印到终端，不会自动安装
+- 某些 Windows PowerShell 5.1 会话默认没有启用 `Tls12`；上面的 PowerShell / cmd 下载命令会先显式补上，再访问 `raw.githubusercontent.com`
+- Windows 下载命令会先删除旧的临时安装脚本，并在执行前检查新文件是否真的下载成功，避免下载失败时误执行 `%TEMP%` 里的旧副本
 - Windows 原生终端推荐走 `install.ps1`；它会自动定位 **Git for Windows 自带的 Git Bash**，避免误用 `C:\Windows\System32\bash.exe` 把流程送进 WSL
 - 下载版 `install.ps1` 会先通过 PowerShell 补齐完整安装 payload，再交给 Git Bash 执行，因此不依赖 Bash 侧再去额外下载脚本
 - 如果当前 PowerShell 会话启用了脚本执行限制，请用 `powershell -NoProfile -ExecutionPolicy Bypass -File $tmp` 启动下载后的安装脚本，而不要直接 `& $tmp`

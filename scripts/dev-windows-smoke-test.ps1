@@ -174,13 +174,60 @@ function Remove-TestContext {
   }
 }
 
+function Get-DownloadedInstallPowerShellScript {
+  param($Context)
+
+  $downloadedInstallPath = Join-Path $Context.TempDir 'ai-cli-config-sync-install.ps1'
+  $escapedDownloadedInstallPath = $downloadedInstallPath.Replace("'", "''")
+
+  $downloadLine = if ($UseRemoteDownload) {
+    "Invoke-WebRequest -UseBasicParsing '$RemoteInstallPs1Url' -OutFile `$downloadedInstallPath"
+  } else {
+    $escapedInstallPath = $LocalInstallPs1.Replace("'", "''")
+    "Copy-Item -Path '$escapedInstallPath' -Destination `$downloadedInstallPath -Force"
+  }
+
+  return @"
+Set-StrictMode -Version Latest
+`$ErrorActionPreference = 'Stop'
+`$ProgressPreference = 'SilentlyContinue'
+`$downloadedInstallPath = '$escapedDownloadedInstallPath'
+Remove-Item -Path `$downloadedInstallPath -Force -ErrorAction SilentlyContinue
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls
+$(if ($UseRemoteDownload) { '[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12' })
+$downloadLine
+if (-not (Test-Path `$downloadedInstallPath)) { throw 'Failed to stage install.ps1' }
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls
+& `$downloadedInstallPath
+"@
+}
+
 function Get-DownloadedInstallCmdLine {
   if ($UseRemoteDownload) {
-    return 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing ''https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.ps1'' -OutFile ''%AI_CLI_SYNC_INSTALL_PS1%''"'
+    return 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls; [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -UseBasicParsing ''https://raw.githubusercontent.com/yibing1996/ai-cli-config-sync/main/install.ps1'' -OutFile ''%AI_CLI_SYNC_INSTALL_PS1%''"'
   }
 
   $escapedInstallPath = $LocalInstallPs1.Replace("'", "''")
-  return "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ""Copy-Item '$escapedInstallPath' -Destination '%AI_CLI_SYNC_INSTALL_PS1%'"""
+  return "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ""Copy-Item -Path '$escapedInstallPath' -Destination '%AI_CLI_SYNC_INSTALL_PS1%' -Force"""
+}
+
+function Get-DownloadedInstallCmdRunLine {
+  return 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls; & ''%AI_CLI_SYNC_INSTALL_PS1%''"'
+}
+
+function Test-ReadmeWindowsInstallDocs {
+  Write-Log '验证 README 的 Windows 安装命令包含 TLS 1.2 与失败保护'
+
+  foreach ($path in @(
+    (Join-Path $RootDir 'README.md'),
+    (Join-Path $RootDir 'README_EN.md')
+  )) {
+    Assert-FileContains -Path $path -Needle 'Tls12'
+    Assert-FileContains -Path $path -Needle 'Remove-Item -Path $tmp'
+    Assert-FileContains -Path $path -Needle 'if (-not (Test-Path $tmp))'
+    Assert-FileContains -Path $path -Needle 'del /f /q "%AI_CLI_SYNC_INSTALL_PS1%"'
+    Assert-FileContains -Path $path -Needle 'if not exist "%AI_CLI_SYNC_INSTALL_PS1%"'
+  }
 }
 
 function Assert-InstalledScripts {
@@ -217,12 +264,8 @@ function Install-WithLocalPs1 {
 function Install-WithDownloadedPowerShell {
   param($Context)
 
-  $downloadedInstallPath = Join-Path $Context.TempDir 'ai-cli-config-sync-install.ps1'
-  if ($UseRemoteDownload) {
-    Invoke-WebRequest -UseBasicParsing $RemoteInstallPs1Url -OutFile $downloadedInstallPath
-  } else {
-    Copy-Item -Path $LocalInstallPs1 -Destination $downloadedInstallPath
-  }
+  $bootstrapScript = Join-Path $Context.BaseDir 'download-install.ps1'
+  Set-Content -Path $bootstrapScript -Value (Get-DownloadedInstallPowerShellScript -Context $Context) -Encoding ascii
 
   $environment = $Context.Env
   if (-not $UseRemoteDownload) {
@@ -234,7 +277,7 @@ function Install-WithDownloadedPowerShell {
   Invoke-ExternalProcess -FilePath 'powershell.exe' -ArgumentList @(
     '-NoProfile',
     '-ExecutionPolicy', 'Bypass',
-    '-File', $downloadedInstallPath
+    '-File', $bootstrapScript
   ) -WorkingDirectory $RootDir -Environment $environment | Out-Null
 
   Assert-InstalledScripts $Context
@@ -264,6 +307,7 @@ function Install-WithDownloadedCmd {
 
   $cmdFile = Join-Path $Context.BaseDir 'download-install.cmd'
   $downloadLine = Get-DownloadedInstallCmdLine
+  $runLine = Get-DownloadedInstallCmdRunLine
   $cmdContent = @"
 @echo off
 set "USERPROFILE=$($Context.HomeDir)"
@@ -272,9 +316,11 @@ set "TEMP=$($Context.TempDir)"
 set "TMP=$($Context.TempDir)"
 $(if (-not $UseRemoteDownload) { 'set "AI_CLI_SYNC_INSTALL_SOURCE_DIR=' + $RootDir + '"' })
 set "AI_CLI_SYNC_INSTALL_PS1=%TEMP%\ai-cli-config-sync-install.ps1"
+if exist "%AI_CLI_SYNC_INSTALL_PS1%" del /f /q "%AI_CLI_SYNC_INSTALL_PS1%"
 $downloadLine
 if errorlevel 1 exit /b 1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%AI_CLI_SYNC_INSTALL_PS1%"
+if not exist "%AI_CLI_SYNC_INSTALL_PS1%" exit /b 1
+$runLine
 "@
   Set-Content -Path $cmdFile -Value $cmdContent -Encoding ascii
 
@@ -704,6 +750,7 @@ function Test-EnableAutoSync {
 }
 
 function Main {
+  Test-ReadmeWindowsInstallDocs
   Test-InstallMethods
   foreach ($launcher in @('powershell', 'cmd')) {
     Test-SetupPrefersPull -Launcher $launcher

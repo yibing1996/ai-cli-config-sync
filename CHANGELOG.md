@@ -22,9 +22,11 @@
 - 为 `push.sh`、`pull.sh`、`status.sh` 增加可执行 Python 探测与 `node` 回退，避免 Windows 上命中 Microsoft Store `python3` 占位符后同步流程中断
 - 修复 `status.sh` 在 Windows CRLF 行尾下的误报问题，避免共享配置实际一致时仍显示本地有差异
 - 修复 README 中 Windows `cmd` 安装示例的变量展开问题，改为可直接执行的分行写法
+- 修复 Windows PowerShell 5.1 对 `raw.githubusercontent.com` 的 TLS 兼容性问题：README 的 PowerShell / `cmd` 下载命令现在会显式启用 `Tls12`，并避免在下载失败后误执行旧的临时安装脚本
 - 修复下载版 `install.ps1` 在 Windows 原生终端里的链路：现在会先由 PowerShell 补齐完整安装 payload，再调用 Git Bash，避免把关键脚本下载留给 Bash 侧处理
 - 新增 `scripts/dev-windows-smoke-test.ps1`，用于在 Windows 下回归安装链路与 `.ps1` 包装脚本
 - 调整 `scripts/dev-windows-smoke-test.ps1`：默认验证当前工作树的安装 payload，并支持额外 spot check GitHub raw 安装命令
+- 调整 `scripts/dev-windows-smoke-test.ps1`：下载安装链路现在会显式模拟 PowerShell 5.1 的 legacy TLS 基线，确保外层下载和 `install.ps1` 内部下载都能自行补齐 `Tls12`
 - 调整 `push.sh`、`pull.sh`、`status.sh` 的 Node 回退：仅在原生 Windows POSIX 运行时启用 `node.exe` 探测，并兼容 UTF-8 BOM 与 Windows 路径传递
 - 修复 `enable-auto-sync.ps1` 在 `$PROFILE` 为空时的 PowerShell profile 回退路径，避免 Windows 原生终端下写入 hook 失败
 - 修复 `pull.sh` 中 Python heredoc 的路径展开风险，避免特殊路径导致合并逻辑报错
