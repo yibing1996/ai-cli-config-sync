@@ -394,6 +394,7 @@ function New-BareRemoteRepo {
   )
 
   Invoke-Git -Arguments @('init', '--bare', $RemotePath) | Out-Null
+  Invoke-Git -Arguments @("--git-dir=$RemotePath", 'symbolic-ref', 'HEAD', 'refs/heads/main') | Out-Null
 
   if ($Files.Count -eq 0) {
     return
