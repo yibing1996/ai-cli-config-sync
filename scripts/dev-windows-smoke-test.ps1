@@ -57,6 +57,29 @@ function Assert-FileNotContains {
   }
 }
 
+function Wait-Until {
+  param(
+    [Parameter(Mandatory = $true)]
+    [scriptblock]$Condition,
+
+    [Parameter(Mandatory = $true)]
+    [string]$FailureMessage,
+
+    [int]$TimeoutSeconds = 20,
+    [int]$IntervalMilliseconds = 250
+  )
+
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  while ((Get-Date) -lt $deadline) {
+    if (& $Condition) {
+      return
+    }
+    Start-Sleep -Milliseconds $IntervalMilliseconds
+  }
+
+  throw $FailureMessage
+}
+
 function Merge-Hashtable {
   param(
     [hashtable]$Base,
@@ -728,6 +751,126 @@ function Get-ProfilePathForContext {
   return $profilePath
 }
 
+function Invoke-ProfiledPowerShellScript {
+  param(
+    $Context,
+    [string]$ScriptPath
+  )
+
+  return Invoke-ExternalProcess -FilePath 'powershell.exe' -ArgumentList @(
+    '-ExecutionPolicy', 'Bypass',
+    '-File', $ScriptPath
+  ) -Environment $Context.Env
+}
+
+function Test-AutoPullOnPowerShellStartup {
+  param([ValidateSet('powershell', 'cmd')][string]$Launcher)
+
+  Write-Log "验证 auto_pull=true 时 PowerShell 启动会自动拉取（enable-auto-sync 通过 $Launcher 调用）"
+  $testCtx = $null
+  $testCtx = New-TestContext ("auto-pull-" + $Launcher)
+  try {
+    Install-WithLocalPs1 $testCtx
+
+    $remotePath = Join-Path $testCtx.BaseDir 'remote.git'
+    New-BareRemoteRepo -RemotePath $remotePath -Files @{
+      'codex/AGENTS.md' = "# remote`nauto pull works`n"
+    }
+    Invoke-Git -Arguments @('clone', $remotePath, (Join-Path $testCtx.HomeDir '.cli-sync-repo')) | Out-Null
+    Invoke-Git -Arguments @('-C', (Join-Path $testCtx.HomeDir '.cli-sync-repo'), 'config', 'user.name', 'smoke-test') | Out-Null
+    Invoke-Git -Arguments @('-C', (Join-Path $testCtx.HomeDir '.cli-sync-repo'), 'config', 'user.email', 'smoke@example.com') | Out-Null
+    Write-SyncConfig -Context $testCtx -RemotePath $remotePath
+
+    $configPath = Join-Path $testCtx.HomeDir '.cli-sync\config.yml'
+    Set-Content -Path $configPath -Value @"
+remote: $remotePath
+branch: main
+auto_pull: true
+auto_push: false
+"@ -Encoding ascii
+
+    Invoke-WindowsWrapper -Context $testCtx -Launcher $Launcher -ScriptName 'enable-auto-sync.ps1' | Out-Null
+
+    $pulledAgentsPath = Join-Path $testCtx.HomeDir '.codex\AGENTS.md'
+    Remove-Item -Path $pulledAgentsPath -Force -ErrorAction SilentlyContinue
+
+    $sessionScript = Join-Path $testCtx.BaseDir 'auto-pull-session.ps1'
+    Set-Content -Path $sessionScript -Value 'Start-Sleep -Seconds 3' -Encoding ascii
+    Invoke-ProfiledPowerShellScript -Context $testCtx -ScriptPath $sessionScript | Out-Null
+
+    Wait-Until -FailureMessage 'PowerShell startup did not auto-pull codex/AGENTS.md' -Condition {
+      (Test-Path $pulledAgentsPath) -and ((Get-Content -Path $pulledAgentsPath -Raw) -like '*auto pull works*')
+    }
+
+    Assert-FileContains -Path $pulledAgentsPath -Needle 'auto pull works'
+    $logPath = Join-Path $testCtx.HomeDir '.cli-sync\auto-sync.log'
+    Wait-Until -FailureMessage 'Windows auto-sync log did not record the startup pull' -Condition {
+      (Test-Path $logPath) -and (Select-String -Path $logPath -SimpleMatch -Pattern '从远程拉取配置' -Quiet)
+    }
+  }
+  finally {
+    Remove-TestContext $testCtx
+  }
+}
+
+function Test-AutoPushOnPowerShellExit {
+  param([ValidateSet('powershell', 'cmd')][string]$Launcher)
+
+  Write-Log "验证 auto_push=true 时 PowerShell 退出会自动推送（enable-auto-sync 通过 $Launcher 调用）"
+  $testCtx = $null
+  $testCtx = New-TestContext ("auto-push-" + $Launcher)
+  try {
+    Install-WithLocalPs1 $testCtx
+
+    $remotePath = Join-Path $testCtx.BaseDir 'remote.git'
+    New-BareRemoteRepo -RemotePath $remotePath
+    Initialize-LocalSyncRepo -Context $testCtx -RemotePath $remotePath
+    Write-SyncConfig -Context $testCtx -RemotePath $remotePath
+
+    $configPath = Join-Path $testCtx.HomeDir '.cli-sync\config.yml'
+    Set-Content -Path $configPath -Value @"
+remote: $remotePath
+branch: main
+auto_pull: false
+auto_push: true
+"@ -Encoding ascii
+
+    Invoke-WindowsWrapper -Context $testCtx -Launcher $Launcher -ScriptName 'enable-auto-sync.ps1' | Out-Null
+
+    $sessionScript = Join-Path $testCtx.BaseDir 'auto-push-session.ps1'
+    Set-Content -Path $sessionScript -Value @'
+$codexDir = Join-Path $HOME ".codex"
+New-Item -ItemType Directory -Path $codexDir -Force | Out-Null
+Set-Content -Path (Join-Path $codexDir "AGENTS.md") -Value "# local`nauto push works`n" -Encoding utf8
+'@ -Encoding ascii
+    Invoke-ProfiledPowerShellScript -Context $testCtx -ScriptPath $sessionScript | Out-Null
+
+    $remoteDump = Join-Path $testCtx.BaseDir 'remote-dump'
+    Wait-Until -FailureMessage 'PowerShell exit did not auto-push codex/AGENTS.md' -Condition {
+      Remove-Item -Path $remoteDump -Recurse -Force -ErrorAction SilentlyContinue
+      try {
+        Invoke-Git -Arguments @('clone', $remotePath, $remoteDump) | Out-Null
+        return (Test-Path (Join-Path $remoteDump 'codex\AGENTS.md')) -and ((Get-Content -Path (Join-Path $remoteDump 'codex\AGENTS.md') -Raw) -like '*auto push works*')
+      }
+      catch {
+        return $false
+      }
+    }
+
+    Remove-Item -Path $remoteDump -Recurse -Force -ErrorAction SilentlyContinue
+    Invoke-Git -Arguments @('clone', $remotePath, $remoteDump) | Out-Null
+    Assert-FileContains -Path (Join-Path $remoteDump 'codex\AGENTS.md') -Needle 'auto push works'
+
+    $logPath = Join-Path $testCtx.HomeDir '.cli-sync\auto-sync.log'
+    Wait-Until -FailureMessage 'Windows auto-sync log did not record the exit push' -Condition {
+      (Test-Path $logPath) -and (Select-String -Path $logPath -SimpleMatch -Pattern '配置已推送' -Quiet)
+    }
+  }
+  finally {
+    Remove-TestContext $testCtx
+  }
+}
+
 function Test-EnableAutoSync {
   param([ValidateSet('powershell', 'cmd')][string]$Launcher)
 
@@ -759,6 +902,8 @@ function Main {
     Test-StatusNoFalsePositive -Launcher $launcher
     Test-SyncPushes -Launcher $launcher
     Test-EnableAutoSync -Launcher $launcher
+    Test-AutoPullOnPowerShellStartup -Launcher $launcher
+    Test-AutoPushOnPowerShellExit -Launcher $launcher
   }
   Write-Log '✅ 所有 Windows smoke test 通过'
 }

@@ -42,12 +42,12 @@ if ((Test-Path $ConfigFile) -and (Test-Path $PullScript)) {
   New-Item -ItemType Directory -Path $CliSyncDir -Force | Out-Null
   $configText = Get-Content -Path $ConfigFile -Raw -ErrorAction SilentlyContinue
   if ($configText -match '(?im)^\s*auto_pull:\s*true\s*$') {
-    $pullCommand = "& '" + $PullScript.Replace("'", "''") + "' *>> '" + $LogFile.Replace("'", "''") + "'"
-    Start-Process -FilePath "powershell.exe" -ArgumentList @(
-      '-NoProfile',
-      '-ExecutionPolicy', 'Bypass',
-      '-Command', $pullCommand
-    ) -WindowStyle Hidden
+    $pullCommand = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{0}" >> "{1}" 2>>&1' -f $PullScript.Replace('"', '""'), $LogFile.Replace('"', '""')
+    Start-Process -FilePath "cmd.exe" -ArgumentList @(
+      '/d',
+      '/c',
+      $pullCommand
+    ) -WindowStyle Hidden | Out-Null
   }
 }
 
@@ -61,7 +61,12 @@ if (-not $Global:AiCliSyncPushOnExitRegistered) {
     if ((Test-Path $ConfigFile) -and (Test-Path $PushScript)) {
       $configText = Get-Content -Path $ConfigFile -Raw -ErrorAction SilentlyContinue
       if ($configText -match '(?im)^\s*auto_push:\s*true\s*$') {
-        & $PushScript *>> $LogFile
+        $pushCommand = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{0}" >> "{1}" 2>>&1' -f $PushScript.Replace('"', '""'), $LogFile.Replace('"', '""')
+        Start-Process -FilePath "cmd.exe" -ArgumentList @(
+          '/d',
+          '/c',
+          $pushCommand
+        ) -WindowStyle Hidden | Out-Null
       }
     }
   } | Out-Null

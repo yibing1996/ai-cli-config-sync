@@ -191,6 +191,7 @@ PowerShell 版会：
 - 把自动同步 hook 写入 `$PROFILE`
 - 启动 PowerShell 时根据 `auto_pull: true` 后台执行 `pull.ps1`
 - 通过 `Register-EngineEvent PowerShell.Exiting` 在退出时按 `auto_push: true` 触发 `push.ps1`
+- 即使你从 `cmd` 里执行 `enable-auto-sync.ps1`，自动 pull / push 仍然是在后续 **PowerShell 会话启动 / 退出** 时生效
 
 **Git Bash / WSL / Linux / macOS**：
 

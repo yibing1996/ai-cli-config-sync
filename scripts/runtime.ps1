@@ -48,8 +48,26 @@ function Invoke-AiCliSyncBashScript {
   $bashPath = Get-AiCliSyncGitBashPath
   $command = 'bash "$HOME/.cli-sync/{0}"' -f $ScriptName
   $originalLocation = Get-Location
+  $originalInputEncoding = [Console]::InputEncoding
+  $originalOutputEncoding = [Console]::OutputEncoding
+  $originalPipelineEncoding = $global:OutputEncoding
+  $chcpPath = Join-Path $env:SystemRoot 'System32\chcp.com'
+  $originalCodePage = $null
+  $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
   Set-Location (Get-AiCliSyncWindowsHome)
   try {
+    if (Test-Path $chcpPath) {
+      $codePageOutput = & $chcpPath
+      if ($LASTEXITCODE -eq 0 -and $codePageOutput -match '(\d+)\s*$') {
+        $originalCodePage = $Matches[1]
+      }
+      & $chcpPath 65001 | Out-Null
+    }
+
+    [Console]::InputEncoding = $utf8NoBom
+    [Console]::OutputEncoding = $utf8NoBom
+    $global:OutputEncoding = $utf8NoBom
+
     & $bashPath -lc $command
     $exitCode = $LASTEXITCODE
     if ($null -ne $exitCode -and $exitCode -ne 0) {
@@ -57,6 +75,12 @@ function Invoke-AiCliSyncBashScript {
     }
   }
   finally {
+    if ($originalCodePage -and (Test-Path $chcpPath)) {
+      & $chcpPath $originalCodePage | Out-Null
+    }
+    [Console]::InputEncoding = $originalInputEncoding
+    [Console]::OutputEncoding = $originalOutputEncoding
+    $global:OutputEncoding = $originalPipelineEncoding
     Set-Location $originalLocation
   }
 }
