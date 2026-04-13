@@ -2,13 +2,44 @@
 # enable-auto-sync.sh — 为 bash/zsh 添加自动同步 hook
 set -euo pipefail
 
-if [ -n "${ZSH_VERSION:-}" ]; then
-  SHELL_RC="$HOME/.zshrc"
-else
-  SHELL_RC="$HOME/.bashrc"
-fi
+detect_login_shell_name() {
+  if [ -n "${SHELL:-}" ]; then
+    basename "$SHELL"
+    return
+  fi
+
+  if [ -n "${ZSH_VERSION:-}" ]; then
+    printf 'zsh\n'
+    return
+  fi
+
+  if [ -n "${BASH_VERSION:-}" ]; then
+    printf 'bash\n'
+    return
+  fi
+
+  printf 'bash\n'
+}
+
+SHELL_NAME="$(detect_login_shell_name)"
+case "$SHELL_NAME" in
+  zsh)
+    SHELL_RC="$HOME/.zshrc"
+    ;;
+  bash|sh)
+    SHELL_RC="$HOME/.bashrc"
+    ;;
+  *)
+    echo "⚠️  未识别的登录 shell：$SHELL_NAME，默认写入 $HOME/.bashrc"
+    SHELL_NAME="bash"
+    SHELL_RC="$HOME/.bashrc"
+    ;;
+esac
 
 LOG_FILE="$HOME/.cli-sync/auto-sync.log"
+
+mkdir -p "$(dirname "$SHELL_RC")"
+touch "$SHELL_RC"
 
 if grep -q 'ai-cli-config-sync-hook-start' "$SHELL_RC" 2>/dev/null; then
   echo "ℹ️  自动同步 hook 已存在于 $SHELL_RC，无需重复添加"
@@ -41,5 +72,5 @@ trap _cli_sync_push_on_exit EXIT
 # <<< ai-cli-config-sync-hook-end <<<
 HOOKEOF
 
-echo "✅ 自动同步 hook 已写入 $SHELL_RC"
+echo "✅ 自动同步 hook 已写入 $SHELL_RC（登录 shell：$SHELL_NAME）"
 echo "💡 请编辑 ~/.cli-sync/config.yml 将 auto_pull 和/或 auto_push 设为 true 来启用"

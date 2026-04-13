@@ -251,6 +251,8 @@ The local Git working directory is at `~/.cli-sync-repo/`.
 - Git global identity (`git config --global user.name` and `user.email`)
 
 Auto-sync notes:
+- On Unix / WSL / Linux / macOS, run `bash "$HOME/.cli-sync/enable-auto-sync.sh"` once to install the shell hook; the script selects `~/.bashrc` or `~/.zshrc` from `$SHELL`
+- If you installed auto-sync with an older version while using zsh, rerun `bash "$HOME/.cli-sync/enable-auto-sync.sh"` after updating
 - Startup auto-pull uses a conservative `fetch + ff-only` strategy; if the repo has diverged or has local pending changes, it stops instead of creating a merge state silently
 - Auto-sync logs are written to `~/.cli-sync/auto-sync.log`
 
@@ -302,6 +304,7 @@ If you plan to use this against a real config repository, verify at least the fo
 - Validate restore behavior in a **clean environment**, such as a second machine, a container, or a temporary `HOME` directory
 - After restore succeeds on the second machine, modify `AGENTS.md`, `CLAUDE.md`, or one custom Skill, then run another push and pull to confirm two-way sync
 - Check that `env` in `settings.json`, plus `env` and `[projects.*]` in `config.toml`, and the login / token / `trusted_folders` fields in `~/.copilot/config.json` stay local and are not uploaded to the remote repo
+- On Unix / WSL, verify at least one “new shell auto-pull” and one “shell exit auto-push” flow, and confirm the hook was written into the login shell's `~/.bashrc` or `~/.zshrc`
 - Trigger one auto-sync scenario and inspect `~/.cli-sync/auto-sync.log` to confirm there are no auth failures, divergence issues, or fast-forward failures
 
 Recommended minimum test matrix:

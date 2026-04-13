@@ -198,6 +198,8 @@ PowerShell 版会：
 bash "$HOME/.cli-sync/enable-auto-sync.sh"
 ```
 
+Unix 版会根据 `$SHELL` 把 hook 写入 `~/.bashrc` 或 `~/.zshrc`；即使你当前使用 zsh，也保持执行上面的 `bash "$HOME/.cli-sync/enable-auto-sync.sh"` 即可。若你曾在 zsh 环境里用旧版本安装过 hook，更新后请重新执行一次。
+
 ---
 
 ### 6. 查看同步状态

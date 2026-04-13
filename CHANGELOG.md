@@ -29,6 +29,8 @@
 - 调整 `scripts/dev-windows-smoke-test.ps1`：下载安装链路现在会显式模拟 PowerShell 5.1 的 legacy TLS 基线，确保外层下载和 `install.ps1` 内部下载都能自行补齐 `Tls12`
 - 调整 `push.sh`、`pull.sh`、`status.sh` 的 Node 回退：仅在原生 Windows POSIX 运行时启用 `node.exe` 探测，并兼容 UTF-8 BOM 与 Windows 路径传递
 - 修复 `enable-auto-sync.ps1` 在 `$PROFILE` 为空时的 PowerShell profile 回退路径，避免 Windows 原生终端下写入 hook 失败
+- 修复 Unix / WSL 自动同步 hook 在 zsh 场景下误写入 `~/.bashrc` 的问题；现在会根据登录 shell 选择 `~/.bashrc` 或 `~/.zshrc`
+- 为 `scripts/dev-smoke-test.sh` 增加 Unix 自动同步回归，覆盖 auto_pull、auto_push 与 shell hook 目标文件选择
 - 修复 `pull.sh` 中 Python heredoc 的路径展开风险，避免特殊路径导致合并逻辑报错
 - 将“同步配置”默认策略调整为先推送、失败即停，避免本地未推送文件在拉取阶段被镜像删除
 - 简化 `push.sh` 的推送失败处理，提供更明确的认证、权限与远端领先排查提示

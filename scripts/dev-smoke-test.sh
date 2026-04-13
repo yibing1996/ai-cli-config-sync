@@ -81,6 +81,7 @@ run_docs_consistency_check() {
   assert_contains "$ROOT_DIR/README.md" '### GitHub Copilot CLI'
   assert_contains "$ROOT_DIR/README.md" '### Claude Code CLI'
   assert_not_contains "$ROOT_DIR/README.md" '### GitHub Copilot CLI / Claude Code CLI'
+  assert_contains "$ROOT_DIR/README.md" '根据 `$SHELL` 选择 `~/.bashrc` 或 `~/.zshrc`'
   assert_contains "$ROOT_DIR/README_EN.md" 'Safe sync (push local changes first; stop on failure)'
   assert_contains "$ROOT_DIR/README_EN.md" 'install.ps1'
   assert_contains "$ROOT_DIR/README_EN.md" 'Windows PowerShell'
@@ -88,6 +89,7 @@ run_docs_consistency_check() {
   assert_contains "$ROOT_DIR/README_EN.md" '### GitHub Copilot CLI'
   assert_contains "$ROOT_DIR/README_EN.md" '### Claude Code CLI'
   assert_not_contains "$ROOT_DIR/README_EN.md" '### GitHub Copilot CLI / Claude Code CLI'
+  assert_contains "$ROOT_DIR/README_EN.md" 'selects `~/.bashrc` or `~/.zshrc` from `$SHELL`'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '安全同步（先推送，失败即停）'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" 'Windows 原生终端（PowerShell / cmd）'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" 'setup.ps1'
@@ -95,6 +97,7 @@ run_docs_consistency_check() {
   assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '先 pull 再 push'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '### GitHub Copilot CLI（`~/.copilot/`）'
   assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '### GitHub Copilot CLI / Claude Code CLI（`~/.claude/`）'
+  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '根据 `$SHELL` 把 hook 写入 `~/.bashrc` 或 `~/.zshrc`'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '安全同步（先推送，失败即停）'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" 'Windows 原生终端（PowerShell / cmd）'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" 'setup.ps1'
@@ -102,6 +105,7 @@ run_docs_consistency_check() {
   assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '先 pull 再 push'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '### GitHub Copilot CLI（`~/.copilot/`）'
   assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '### GitHub Copilot CLI / Claude Code CLI（`~/.claude/`）'
+  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '根据 `$SHELL` 把 hook 写入 `~/.bashrc` 或 `~/.zshrc`'
 }
 
 run_install_smoke() {
@@ -127,6 +131,127 @@ run_install_smoke() {
   assert_file "$home/.cli-sync/runtime.ps1"
   assert_file "$home/.claude/skills/ai-cli-config-sync/SKILL.md"
   assert_file "$home/.codex/skills/ai-cli-config-sync/SKILL.md"
+
+  rm -rf "$tmpdir"
+}
+
+run_enable_auto_sync_target_shell_smoke() {
+  local tmpdir zsh_home bash_home
+  tmpdir="$(make_tmpdir)"
+  zsh_home="$tmpdir/home-zsh"
+  bash_home="$tmpdir/home-bash"
+
+  log "验证 enable-auto-sync.sh 会根据登录 shell 写入正确的 rc 文件"
+
+  mkdir -p "$zsh_home" "$bash_home"
+  : > "$zsh_home/.bashrc"
+  : > "$zsh_home/.zshrc"
+  : > "$bash_home/.bashrc"
+  : > "$bash_home/.zshrc"
+
+  HOME="$zsh_home" SHELL=/bin/zsh bash "$ROOT_DIR/scripts/enable-auto-sync.sh" >/dev/null 2>&1
+  assert_contains "$zsh_home/.zshrc" 'ai-cli-config-sync-hook-start'
+  assert_not_contains "$zsh_home/.bashrc" 'ai-cli-config-sync-hook-start'
+
+  HOME="$bash_home" SHELL=/bin/bash bash "$ROOT_DIR/scripts/enable-auto-sync.sh" >/dev/null 2>&1
+  assert_contains "$bash_home/.bashrc" 'ai-cli-config-sync-hook-start'
+  assert_not_contains "$bash_home/.zshrc" 'ai-cli-config-sync-hook-start'
+
+  rm -rf "$tmpdir"
+}
+
+run_auto_pull_hook_smoke() {
+  local tmpdir home remote log_file
+  tmpdir="$(make_tmpdir)"
+  home="$tmpdir/home"
+  remote="$tmpdir/remote.git"
+  log_file="$home/.cli-sync/auto-sync.log"
+
+  log "验证 auto_pull=true 时 shell 启动会自动拉取"
+  HOME="$home" bash "$ROOT_DIR/install.sh" >/dev/null 2>&1
+  printf '\n' > "$home/.bashrc"
+
+  git init --bare "$remote" >/dev/null 2>&1
+  git init "$tmpdir/src" >/dev/null 2>&1
+  git -C "$tmpdir/src" config user.name smoke-test
+  git -C "$tmpdir/src" config user.email smoke@example.com
+  mkdir -p "$tmpdir/src/codex"
+  cat > "$tmpdir/src/codex/AGENTS.md" <<'EOF'
+# remote
+auto pull works
+EOF
+  git -C "$tmpdir/src" add codex/AGENTS.md >/dev/null 2>&1
+  git -C "$tmpdir/src" commit -m "seed" >/dev/null 2>&1
+  git -C "$tmpdir/src" branch -M main
+  git -C "$tmpdir/src" remote add origin "$remote"
+  git -C "$tmpdir/src" push origin main >/dev/null 2>&1
+  git --git-dir="$remote" symbolic-ref HEAD refs/heads/main
+
+  git clone "$remote" "$home/.cli-sync-repo" >/dev/null 2>&1
+  git -C "$home/.cli-sync-repo" config user.name smoke-test
+  git -C "$home/.cli-sync-repo" config user.email smoke@example.com
+  cat > "$home/.cli-sync/config.yml" <<EOF
+remote: $remote
+branch: main
+auto_pull: true
+auto_push: false
+EOF
+
+  HOME="$home" SHELL=/bin/bash bash "$home/.cli-sync/enable-auto-sync.sh" >/dev/null 2>&1
+  rm -f "$home/.codex/AGENTS.md"
+
+  HOME="$home" bash --rcfile "$home/.bashrc" -i -c 'for i in $(seq 1 80); do if [ -f "$HOME/.codex/AGENTS.md" ] && grep -Fq "auto pull works" "$HOME/.codex/AGENTS.md"; then exit 0; fi; sleep 0.25; done; exit 1' >/dev/null 2>&1
+
+  assert_file "$home/.codex/AGENTS.md"
+  assert_contains "$home/.codex/AGENTS.md" 'auto pull works'
+  assert_file "$log_file"
+  assert_contains "$log_file" '从远程拉取配置'
+
+  rm -rf "$tmpdir"
+}
+
+run_auto_push_hook_smoke() {
+  local tmpdir home remote log_file clone_check
+  tmpdir="$(make_tmpdir)"
+  home="$tmpdir/home"
+  remote="$tmpdir/remote.git"
+  log_file="$home/.cli-sync/auto-sync.log"
+  clone_check="$tmpdir/clone-check"
+
+  log "验证 auto_push=true 时 shell 退出会自动推送"
+  HOME="$home" bash "$ROOT_DIR/install.sh" >/dev/null 2>&1
+  printf '\n' > "$home/.bashrc"
+
+  git init --bare "$remote" >/dev/null 2>&1
+  git --git-dir="$remote" symbolic-ref HEAD refs/heads/main
+
+  mkdir -p "$home/.cli-sync-repo" "$home/.cli-sync" "$home/.codex"
+  git init "$home/.cli-sync-repo" >/dev/null 2>&1
+  git -C "$home/.cli-sync-repo" config user.name smoke-test
+  git -C "$home/.cli-sync-repo" config user.email smoke@example.com
+  git -C "$home/.cli-sync-repo" remote add origin "$remote"
+  git -C "$home/.cli-sync-repo" checkout -b main >/dev/null 2>&1
+
+  cat > "$home/.cli-sync/config.yml" <<EOF
+remote: $remote
+branch: main
+auto_pull: false
+auto_push: true
+EOF
+
+  cat > "$home/.codex/AGENTS.md" <<'EOF'
+# local
+auto push works
+EOF
+
+  HOME="$home" SHELL=/bin/bash bash "$home/.cli-sync/enable-auto-sync.sh" >/dev/null 2>&1
+  HOME="$home" bash --rcfile "$home/.bashrc" -i -c 'true' >/dev/null 2>&1
+
+  git clone "$remote" "$clone_check" >/dev/null 2>&1
+  assert_file "$clone_check/codex/AGENTS.md"
+  assert_contains "$clone_check/codex/AGENTS.md" 'auto push works'
+  assert_file "$log_file"
+  assert_contains "$log_file" '配置已推送'
 
   rm -rf "$tmpdir"
 }
@@ -781,6 +906,9 @@ main() {
   run_syntax_check
   run_docs_consistency_check
   run_install_smoke
+  run_enable_auto_sync_target_shell_smoke
+  run_auto_pull_hook_smoke
+  run_auto_push_hook_smoke
   run_push_filter_smoke
   run_copilot_push_filter_smoke
   run_copilot_push_node_fallback_smoke

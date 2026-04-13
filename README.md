@@ -251,6 +251,8 @@ auto_push: false   # 设为 true：shell 退出时自动 push
 - Git 全局身份配置（`git config --global user.name` 和 `user.email`）
 
 自动同步说明：
+- Unix / WSL / Linux / macOS 侧需要先执行一次 `bash "$HOME/.cli-sync/enable-auto-sync.sh"` 写入 shell hook；脚本会根据 `$SHELL` 选择 `~/.bashrc` 或 `~/.zshrc`
+- 如果你曾在 zsh 环境里用旧版本安装过自动同步 hook，更新后请重新执行一次 `bash "$HOME/.cli-sync/enable-auto-sync.sh"`
 - 启动时自动拉取使用保守的 `fetch + ff-only` 策略，检测到分叉或未提交变更时会停止，不会静默制造 merge 状态
 - 自动同步日志默认写入 `~/.cli-sync/auto-sync.log`
 
@@ -302,6 +304,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-windows-sm
 - 在“全新环境”中验证恢复流程，例如新机器、容器，或使用一个临时 `HOME` 目录
 - 在第二台机器恢复成功后，修改 `AGENTS.md`、`CLAUDE.md` 或某个 Skill，再执行一次推送和拉取，确认双向同步正常
 - 检查 `settings.json` 的 `env`、`config.toml` 的 `env` 与 `[projects.*]`、以及 `~/.copilot/config.json` 的登录态 / Token / `trusted_folders` 是否按预期保留在本机、未被同步到远端
+- 在 Unix / WSL 环境里至少验证一次“新开 shell 自动 pull”和“退出 shell 自动 push”，确认 hook 已写入当前登录 shell 对应的 `~/.bashrc` 或 `~/.zshrc`
 - 手动触发一次自动同步场景，并查看 `~/.cli-sync/auto-sync.log`，确认没有出现认证失败、分叉或快进失败
 
 推荐最少验证矩阵：
