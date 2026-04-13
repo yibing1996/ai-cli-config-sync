@@ -197,6 +197,33 @@ function Remove-TestContext {
   }
 }
 
+function Get-PathWithoutPython {
+  param([string]$PathValue = $env:PATH)
+
+  $parts = @($PathValue -split ';' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+  $filtered = foreach ($part in $parts) {
+    $candidate = $part.Trim('"')
+    if (-not (Test-Path $candidate)) {
+      $part
+      continue
+    }
+
+    $hasPython = $false
+    foreach ($name in @('python.exe', 'python3.exe', 'py.exe', 'python.bat', 'python3.bat', 'py.bat', 'python.cmd', 'python3.cmd', 'py.cmd')) {
+      if (Test-Path (Join-Path $candidate $name)) {
+        $hasPython = $true
+        break
+      }
+    }
+
+    if (-not $hasPython) {
+      $part
+    }
+  }
+
+  return ($filtered -join ';')
+}
+
 function Get-DownloadedInstallPowerShellScript {
   param($Context)
 
@@ -575,7 +602,7 @@ function Test-PushNodeFallback {
 '@ -Encoding utf8
 
     $extraEnv = @{
-      PATH = $testCtx.FakeBinDir + ';' + $env:PATH
+      PATH = $testCtx.FakeBinDir + ';' + (Get-PathWithoutPython)
     }
     Invoke-WindowsWrapper -Context $testCtx -Launcher $Launcher -ScriptName 'push.ps1' -ExtraEnvironment $extraEnv | Out-Null
 
@@ -658,7 +685,7 @@ function Test-PullNodeFallback {
 '@ -Encoding utf8
 
     $extraEnv = @{
-      PATH = $testCtx.FakeBinDir + ';' + $env:PATH
+      PATH = $testCtx.FakeBinDir + ';' + (Get-PathWithoutPython)
     }
     Invoke-WindowsWrapper -Context $testCtx -Launcher $Launcher -ScriptName 'pull.ps1' -ExtraEnvironment $extraEnv | Out-Null
 
@@ -699,7 +726,7 @@ function Test-StatusNoFalsePositive {
     [IO.File]::WriteAllText((Join-Path $copilotDir 'config.json'), "{`r`n  `"model`": `"gpt-5`"`r`n}`r`n")
 
     $extraEnv = @{
-      PATH = $testCtx.FakeBinDir + ';' + $env:PATH
+      PATH = $testCtx.FakeBinDir + ';' + (Get-PathWithoutPython)
     }
     $result = Invoke-WindowsWrapper -Context $testCtx -Launcher $Launcher -ScriptName 'status.ps1' -ExtraEnvironment $extraEnv
 
