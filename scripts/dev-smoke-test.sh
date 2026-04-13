@@ -272,6 +272,145 @@ EOF
   rm -rf "$tmpdir"
 }
 
+run_auto_pull_disabled_smoke() {
+  local tmpdir home remote log_file
+  tmpdir="$(make_tmpdir)"
+  home="$tmpdir/home"
+  remote="$tmpdir/remote.git"
+  log_file="$home/.cli-sync/auto-sync.log"
+
+  log "验证 auto_pull=false 时 shell 启动不会自动拉取"
+  HOME="$home" bash "$ROOT_DIR/install.sh" >/dev/null 2>&1
+  printf '\n' > "$home/.bashrc"
+
+  git init --bare "$remote" >/dev/null 2>&1
+  git init "$tmpdir/src" >/dev/null 2>&1
+  git -C "$tmpdir/src" config user.name smoke-test
+  git -C "$tmpdir/src" config user.email smoke@example.com
+  mkdir -p "$tmpdir/src/codex"
+  cat > "$tmpdir/src/codex/AGENTS.md" <<'EOF'
+# remote
+should not auto pull
+EOF
+  git -C "$tmpdir/src" add codex/AGENTS.md >/dev/null 2>&1
+  git -C "$tmpdir/src" commit -m "seed" >/dev/null 2>&1
+  git -C "$tmpdir/src" branch -M main
+  git -C "$tmpdir/src" remote add origin "$remote"
+  git -C "$tmpdir/src" push origin main >/dev/null 2>&1
+  git --git-dir="$remote" symbolic-ref HEAD refs/heads/main
+
+  git clone "$remote" "$home/.cli-sync-repo" >/dev/null 2>&1
+  git -C "$home/.cli-sync-repo" config user.name smoke-test
+  git -C "$home/.cli-sync-repo" config user.email smoke@example.com
+  cat > "$home/.cli-sync/config.yml" <<EOF
+remote: $remote
+branch: main
+auto_pull: false
+auto_push: false
+EOF
+
+  HOME="$home" SHELL=/bin/bash bash "$home/.cli-sync/enable-auto-sync.sh" >/dev/null 2>&1
+  rm -f "$home/.codex/AGENTS.md"
+
+  HOME="$home" bash --rcfile "$home/.bashrc" -i -c 'sleep 2' >/dev/null 2>&1
+
+  if [ -f "$home/.codex/AGENTS.md" ]; then
+    fail "auto_pull=false 时不应自动拉取 ~/.codex/AGENTS.md"
+  fi
+  if [ -f "$log_file" ]; then
+    assert_not_contains "$log_file" '从远程拉取配置'
+  fi
+
+  rm -rf "$tmpdir"
+}
+
+run_auto_push_disabled_smoke() {
+  local tmpdir home remote log_file
+  tmpdir="$(make_tmpdir)"
+  home="$tmpdir/home"
+  remote="$tmpdir/remote.git"
+  log_file="$home/.cli-sync/auto-sync.log"
+
+  log "验证 auto_push=false 时 shell 退出不会自动推送"
+  HOME="$home" bash "$ROOT_DIR/install.sh" >/dev/null 2>&1
+  printf '\n' > "$home/.bashrc"
+
+  git init --bare "$remote" >/dev/null 2>&1
+  git --git-dir="$remote" symbolic-ref HEAD refs/heads/main
+
+  mkdir -p "$home/.cli-sync-repo" "$home/.cli-sync" "$home/.codex"
+  git init "$home/.cli-sync-repo" >/dev/null 2>&1
+  git -C "$home/.cli-sync-repo" config user.name smoke-test
+  git -C "$home/.cli-sync-repo" config user.email smoke@example.com
+  git -C "$home/.cli-sync-repo" remote add origin "$remote"
+  git -C "$home/.cli-sync-repo" checkout -b main >/dev/null 2>&1
+
+  cat > "$home/.cli-sync/config.yml" <<EOF
+remote: $remote
+branch: main
+auto_pull: false
+auto_push: false
+EOF
+
+  cat > "$home/.codex/AGENTS.md" <<'EOF'
+# local
+should not auto push
+EOF
+
+  HOME="$home" SHELL=/bin/bash bash "$home/.cli-sync/enable-auto-sync.sh" >/dev/null 2>&1
+  HOME="$home" bash --rcfile "$home/.bashrc" -i -c 'true' >/dev/null 2>&1
+
+  if git --git-dir="$remote" show-ref --verify refs/heads/main >/dev/null 2>&1; then
+    fail "auto_push=false 时远端不应产生 main 分支提交"
+  fi
+  if [ -f "$log_file" ]; then
+    assert_not_contains "$log_file" '配置已推送'
+  fi
+
+  rm -rf "$tmpdir"
+}
+
+run_sync_pushes_smoke() {
+  local tmpdir home remote remote_dump
+  tmpdir="$(make_tmpdir)"
+  home="$tmpdir/home"
+  remote="$tmpdir/remote.git"
+  remote_dump="$tmpdir/remote-dump"
+
+  log "验证 sync.sh 会优先推送本地配置"
+  HOME="$home" bash "$ROOT_DIR/install.sh" >/dev/null 2>&1
+
+  git init --bare "$remote" >/dev/null 2>&1
+  git --git-dir="$remote" symbolic-ref HEAD refs/heads/main
+
+  mkdir -p "$home/.cli-sync-repo" "$home/.cli-sync" "$home/.codex"
+  git init "$home/.cli-sync-repo" >/dev/null 2>&1
+  git -C "$home/.cli-sync-repo" config user.name smoke-test
+  git -C "$home/.cli-sync-repo" config user.email smoke@example.com
+  git -C "$home/.cli-sync-repo" remote add origin "$remote"
+  git -C "$home/.cli-sync-repo" checkout -b main >/dev/null 2>&1
+
+  cat > "$home/.cli-sync/config.yml" <<EOF
+remote: $remote
+branch: main
+auto_pull: false
+auto_push: false
+EOF
+
+  cat > "$home/.codex/AGENTS.md" <<'EOF'
+# local
+sync.sh works
+EOF
+
+  HOME="$home" bash "$ROOT_DIR/scripts/sync.sh" >/dev/null 2>&1
+
+  git clone "$remote" "$remote_dump" >/dev/null 2>&1
+  assert_file "$remote_dump/codex/AGENTS.md"
+  assert_contains "$remote_dump/codex/AGENTS.md" 'sync.sh works'
+
+  rm -rf "$tmpdir"
+}
+
 run_push_filter_smoke() {
   local tmpdir home remote filtered
   tmpdir="$(make_tmpdir)"
@@ -925,6 +1064,9 @@ main() {
   run_enable_auto_sync_target_shell_smoke
   run_auto_pull_hook_smoke
   run_auto_push_hook_smoke
+  run_auto_pull_disabled_smoke
+  run_auto_push_disabled_smoke
+  run_sync_pushes_smoke
   run_push_filter_smoke
   run_copilot_push_filter_smoke
   run_copilot_push_node_fallback_smoke

@@ -34,6 +34,7 @@
 - 调整 `enable-auto-sync.sh` / `enable-auto-sync.ps1`：重新执行时会自动替换旧 hook，确保升级后能拿到最新自动同步逻辑
 - 修复 Unix / WSL 自动同步 hook 在 zsh 场景下误写入 `~/.bashrc` 的问题；现在会根据登录 shell 选择 `~/.bashrc` 或 `~/.zshrc`
 - 为 `scripts/dev-smoke-test.sh` 增加 Unix 自动同步回归，覆盖 auto_pull、auto_push 与 shell hook 目标文件选择
+- 补齐 Unix / Windows smoke test 矩阵，覆盖 `sync.sh`、`auto_pull` / `auto_push` 在 `true` / `false` 下的正反向回归
 - 修复 `pull.sh` 中 Python heredoc 的路径展开风险，避免特殊路径导致合并逻辑报错
 - 将“同步配置”默认策略调整为先推送、失败即停，避免本地未推送文件在拉取阶段被镜像删除
 - 简化 `push.sh` 的推送失败处理，提供更明确的认证、权限与远端领先排查提示

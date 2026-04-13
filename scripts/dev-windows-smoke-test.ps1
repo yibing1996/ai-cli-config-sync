@@ -871,6 +871,95 @@ Set-Content -Path (Join-Path $codexDir "AGENTS.md") -Value "# local`nauto push w
   }
 }
 
+function Test-AutoPullDisabled {
+  param([ValidateSet('powershell', 'cmd')][string]$Launcher)
+
+  Write-Log "验证 auto_pull=false 时 PowerShell 启动不会自动拉取（enable-auto-sync 通过 $Launcher 调用）"
+  $testCtx = $null
+  $testCtx = New-TestContext ("auto-pull-disabled-" + $Launcher)
+  try {
+    Install-WithLocalPs1 $testCtx
+
+    $remotePath = Join-Path $testCtx.BaseDir 'remote.git'
+    New-BareRemoteRepo -RemotePath $remotePath -Files @{
+      'codex/AGENTS.md' = "# remote`nshould not auto pull`n"
+    }
+    Invoke-Git -Arguments @('clone', $remotePath, (Join-Path $testCtx.HomeDir '.cli-sync-repo')) | Out-Null
+    Invoke-Git -Arguments @('-C', (Join-Path $testCtx.HomeDir '.cli-sync-repo'), 'config', 'user.name', 'smoke-test') | Out-Null
+    Invoke-Git -Arguments @('-C', (Join-Path $testCtx.HomeDir '.cli-sync-repo'), 'config', 'user.email', 'smoke@example.com') | Out-Null
+
+    Set-Content -Path (Join-Path $testCtx.HomeDir '.cli-sync\config.yml') -Value @"
+remote: $remotePath
+branch: main
+auto_pull: false
+auto_push: false
+"@ -Encoding ascii
+
+    Invoke-WindowsWrapper -Context $testCtx -Launcher $Launcher -ScriptName 'enable-auto-sync.ps1' | Out-Null
+
+    $pulledAgentsPath = Join-Path $testCtx.HomeDir '.codex\AGENTS.md'
+    Remove-Item -Path $pulledAgentsPath -Force -ErrorAction SilentlyContinue
+
+    $sessionScript = Join-Path $testCtx.BaseDir 'auto-pull-disabled-session.ps1'
+    Set-Content -Path $sessionScript -Value 'Start-Sleep -Seconds 3' -Encoding ascii
+    Invoke-ProfiledPowerShellScript -Context $testCtx -ScriptPath $sessionScript | Out-Null
+    Start-Sleep -Seconds 2
+
+    Assert-True -Condition (-not (Test-Path $pulledAgentsPath)) -Message 'auto_pull=false should not pull codex/AGENTS.md on PowerShell startup'
+    $logPath = Join-Path $testCtx.HomeDir '.cli-sync\auto-sync.log'
+    if (Test-Path $logPath) {
+      Assert-FileNotContains -Path $logPath -Needle '从远程拉取配置'
+    }
+  }
+  finally {
+    Remove-TestContext $testCtx
+  }
+}
+
+function Test-AutoPushDisabled {
+  param([ValidateSet('powershell', 'cmd')][string]$Launcher)
+
+  Write-Log "验证 auto_push=false 时 PowerShell 退出不会自动推送（enable-auto-sync 通过 $Launcher 调用）"
+  $testCtx = $null
+  $testCtx = New-TestContext ("auto-push-disabled-" + $Launcher)
+  try {
+    Install-WithLocalPs1 $testCtx
+
+    $remotePath = Join-Path $testCtx.BaseDir 'remote.git'
+    New-BareRemoteRepo -RemotePath $remotePath
+    Initialize-LocalSyncRepo -Context $testCtx -RemotePath $remotePath
+
+    Set-Content -Path (Join-Path $testCtx.HomeDir '.cli-sync\config.yml') -Value @"
+remote: $remotePath
+branch: main
+auto_pull: false
+auto_push: false
+"@ -Encoding ascii
+
+    Invoke-WindowsWrapper -Context $testCtx -Launcher $Launcher -ScriptName 'enable-auto-sync.ps1' | Out-Null
+
+    $sessionScript = Join-Path $testCtx.BaseDir 'auto-push-disabled-session.ps1'
+    Set-Content -Path $sessionScript -Value @'
+$codexDir = Join-Path $HOME ".codex"
+New-Item -ItemType Directory -Path $codexDir -Force | Out-Null
+Set-Content -Path (Join-Path $codexDir "AGENTS.md") -Value "# local`nshould not auto push`n" -Encoding utf8
+'@ -Encoding ascii
+    Invoke-ProfiledPowerShellScript -Context $testCtx -ScriptPath $sessionScript | Out-Null
+    Start-Sleep -Seconds 2
+
+    $remoteHead = Invoke-ExternalProcess -FilePath 'git' -ArgumentList @("--git-dir=$remotePath", 'branch', '--list', 'main')
+    Assert-True -Condition ([string]::IsNullOrWhiteSpace($remoteHead.StdOut)) -Message 'auto_push=false should not create a pushed commit on refs/heads/main'
+
+    $logPath = Join-Path $testCtx.HomeDir '.cli-sync\auto-sync.log'
+    if (Test-Path $logPath) {
+      Assert-FileNotContains -Path $logPath -Needle '配置已推送'
+    }
+  }
+  finally {
+    Remove-TestContext $testCtx
+  }
+}
+
 function Test-EnableAutoSync {
   param([ValidateSet('powershell', 'cmd')][string]$Launcher)
 
@@ -914,6 +1003,8 @@ function Main {
     Test-EnableAutoSync -Launcher $launcher
     Test-AutoPullOnPowerShellStartup -Launcher $launcher
     Test-AutoPushOnPowerShellExit -Launcher $launcher
+    Test-AutoPullDisabled -Launcher $launcher
+    Test-AutoPushDisabled -Launcher $launcher
   }
   Write-Log '✅ 所有 Windows smoke test 通过'
 }
