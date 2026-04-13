@@ -37,13 +37,20 @@ case "$SHELL_NAME" in
 esac
 
 LOG_FILE="$HOME/.cli-sync/auto-sync.log"
+START_MARKER='# >>> ai-cli-config-sync-hook-start >>>'
+END_MARKER='# <<< ai-cli-config-sync-hook-end <<<'
 
 mkdir -p "$(dirname "$SHELL_RC")"
 touch "$SHELL_RC"
 
-if grep -q 'ai-cli-config-sync-hook-start' "$SHELL_RC" 2>/dev/null; then
-  echo "ℹ️  自动同步 hook 已存在于 $SHELL_RC，无需重复添加"
-  exit 0
+if grep -q "$START_MARKER" "$SHELL_RC" 2>/dev/null; then
+  tmp_rc="$(mktemp)"
+  awk -v start="$START_MARKER" -v end="$END_MARKER" '
+    $0 == start { skip=1; next }
+    $0 == end { skip=0; next }
+    !skip { print }
+  ' "$SHELL_RC" > "$tmp_rc"
+  mv "$tmp_rc" "$SHELL_RC"
 fi
 
 cat >> "$SHELL_RC" << 'HOOKEOF'
@@ -72,5 +79,5 @@ trap _cli_sync_push_on_exit EXIT
 # <<< ai-cli-config-sync-hook-end <<<
 HOOKEOF
 
-echo "✅ 自动同步 hook 已写入 $SHELL_RC（登录 shell：$SHELL_NAME）"
+echo "✅ 自动同步 hook 已写入/更新 $SHELL_RC（登录 shell：$SHELL_NAME）"
 echo "💡 请编辑 ~/.cli-sync/config.yml 将 auto_pull 和/或 auto_push 设为 true 来启用"

@@ -24,10 +24,18 @@ if (-not (Test-Path $targetProfile)) {
 }
 
 $marker = 'ai-cli-config-sync-hook-start'
-if (Select-String -Path $targetProfile -Pattern $marker -Quiet -ErrorAction SilentlyContinue) {
-  Write-Host "Auto-sync hook already exists in $targetProfile"
-  exit 0
+$startMarker = '# >>> ai-cli-config-sync-hook-start >>>'
+$endMarker = '# <<< ai-cli-config-sync-hook-end <<<'
+$existingProfileText = Get-Content -Path $targetProfile -Raw -ErrorAction SilentlyContinue
+if ($null -eq $existingProfileText) {
+  $existingProfileText = ''
 }
+
+$existingProfileText = [regex]::Replace(
+  $existingProfileText,
+  '(?ms)^\s*# >>> ai-cli-config-sync-hook-start >>>.*?# <<< ai-cli-config-sync-hook-end <<<\r?\n?',
+  ''
+).TrimEnd()
 
 $hook = @'
 
@@ -74,7 +82,12 @@ if (-not $Global:AiCliSyncPushOnExitRegistered) {
 # <<< ai-cli-config-sync-hook-end <<<
 '@
 
-Add-Content -Path $targetProfile -Value $hook
+$newProfileText = if ([string]::IsNullOrWhiteSpace($existingProfileText)) {
+  $hook.TrimStart("`r", "`n")
+} else {
+  $existingProfileText + "`r`n" + $hook.TrimStart("`r", "`n")
+}
+[System.IO.File]::WriteAllText($targetProfile, $newProfileText, [System.Text.UTF8Encoding]::new($true))
 
-Write-Host "Auto-sync hook written to $targetProfile"
+Write-Host "Auto-sync hook written/updated in $targetProfile"
 Write-Host "Edit ~/.cli-sync/config.yml and set auto_pull and/or auto_push to true to enable it."

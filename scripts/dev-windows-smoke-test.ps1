@@ -886,6 +886,16 @@ function Test-EnableAutoSync {
     Assert-Path $profilePath
     Assert-FileContains -Path $profilePath -Needle 'ai-cli-config-sync-hook-start'
     Assert-FileContains -Path $profilePath -Needle 'Register-EngineEvent -SourceIdentifier PowerShell.Exiting'
+
+    Set-Content -Path $profilePath -Value @'
+# >>> ai-cli-config-sync-hook-start >>>
+old windows hook
+# <<< ai-cli-config-sync-hook-end <<<
+'@ -Encoding utf8
+    Invoke-WindowsWrapper -Context $testCtx -Launcher $Launcher -ScriptName 'enable-auto-sync.ps1' | Out-Null
+
+    Assert-FileContains -Path $profilePath -Needle 'Register-EngineEvent -SourceIdentifier PowerShell.Exiting'
+    Assert-FileNotContains -Path $profilePath -Needle 'old windows hook'
   }
   finally {
     Remove-TestContext $testCtx

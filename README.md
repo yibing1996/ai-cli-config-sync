@@ -252,6 +252,7 @@ auto_push: false   # 设为 true：shell 退出时自动 push
 
 自动同步说明：
 - Windows 侧的 `enable-auto-sync.ps1` 会把 hook 写入 **PowerShell profile**；即使你从 `cmd` 里执行这个命令，`auto_pull` / `auto_push` 也会在后续 **PowerShell 启动 / 退出** 时生效
+- 如果你之前已经安装过旧版本 hook，重新执行 `enable-auto-sync.ps1` / `enable-auto-sync.sh` 会自动替换旧 hook，而不是直接跳过
 - Unix / WSL / Linux / macOS 侧需要先执行一次 `bash "$HOME/.cli-sync/enable-auto-sync.sh"` 写入 shell hook；脚本会根据 `$SHELL` 选择 `~/.bashrc` 或 `~/.zshrc`
 - 如果你曾在 zsh 环境里用旧版本安装过自动同步 hook，更新后请重新执行一次 `bash "$HOME/.cli-sync/enable-auto-sync.sh"`
 - 启动时自动拉取使用保守的 `fetch + ff-only` 策略，检测到分叉或未提交变更时会停止，不会静默制造 merge 状态

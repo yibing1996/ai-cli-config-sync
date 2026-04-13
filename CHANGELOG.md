@@ -31,6 +31,7 @@
 - 修复 `enable-auto-sync.ps1` 在 `$PROFILE` 为空时的 PowerShell profile 回退路径，避免 Windows 原生终端下写入 hook 失败
 - 修复 Windows PowerShell 包装脚本的 UTF-8 控制，避免自动同步日志中的中文输出出现乱码
 - 为 `scripts/dev-windows-smoke-test.ps1` 增加 Windows 自动同步真链路回归，覆盖 `auto_pull=true` 的 PowerShell 启动自动拉取与 `auto_push=true` 的 PowerShell 退出自动推送
+- 调整 `enable-auto-sync.sh` / `enable-auto-sync.ps1`：重新执行时会自动替换旧 hook，确保升级后能拿到最新自动同步逻辑
 - 修复 Unix / WSL 自动同步 hook 在 zsh 场景下误写入 `~/.bashrc` 的问题；现在会根据登录 shell 选择 `~/.bashrc` 或 `~/.zshrc`
 - 为 `scripts/dev-smoke-test.sh` 增加 Unix 自动同步回归，覆盖 auto_pull、auto_push 与 shell hook 目标文件选择
 - 修复 `pull.sh` 中 Python heredoc 的路径展开风险，避免特殊路径导致合并逻辑报错

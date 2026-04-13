@@ -152,10 +152,26 @@ run_enable_auto_sync_target_shell_smoke() {
   HOME="$zsh_home" SHELL=/bin/zsh bash "$ROOT_DIR/scripts/enable-auto-sync.sh" >/dev/null 2>&1
   assert_contains "$zsh_home/.zshrc" 'ai-cli-config-sync-hook-start'
   assert_not_contains "$zsh_home/.bashrc" 'ai-cli-config-sync-hook-start'
+  cat > "$zsh_home/.zshrc" <<'EOF'
+# >>> ai-cli-config-sync-hook-start >>>
+old unix hook
+# <<< ai-cli-config-sync-hook-end <<<
+EOF
+  HOME="$zsh_home" SHELL=/bin/zsh bash "$ROOT_DIR/scripts/enable-auto-sync.sh" >/dev/null 2>&1
+  assert_contains "$zsh_home/.zshrc" '_cli_sync_push_on_exit'
+  assert_not_contains "$zsh_home/.zshrc" 'old unix hook'
 
   HOME="$bash_home" SHELL=/bin/bash bash "$ROOT_DIR/scripts/enable-auto-sync.sh" >/dev/null 2>&1
   assert_contains "$bash_home/.bashrc" 'ai-cli-config-sync-hook-start'
   assert_not_contains "$bash_home/.zshrc" 'ai-cli-config-sync-hook-start'
+  cat > "$bash_home/.bashrc" <<'EOF'
+# >>> ai-cli-config-sync-hook-start >>>
+old unix hook
+# <<< ai-cli-config-sync-hook-end <<<
+EOF
+  HOME="$bash_home" SHELL=/bin/bash bash "$ROOT_DIR/scripts/enable-auto-sync.sh" >/dev/null 2>&1
+  assert_contains "$bash_home/.bashrc" '_cli_sync_push_on_exit'
+  assert_not_contains "$bash_home/.bashrc" 'old unix hook'
 
   rm -rf "$tmpdir"
 }

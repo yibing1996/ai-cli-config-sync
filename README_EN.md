@@ -252,6 +252,7 @@ The local Git working directory is at `~/.cli-sync-repo/`.
 
 Auto-sync notes:
 - On Windows, `enable-auto-sync.ps1` writes the hook into the **PowerShell profile**; even if you invoke it from `cmd`, `auto_pull` / `auto_push` take effect when a later **PowerShell session starts or exits**
+- If an older hook is already installed, rerunning `enable-auto-sync.ps1` / `enable-auto-sync.sh` now replaces the old hook block instead of skipping it
 - On Unix / WSL / Linux / macOS, run `bash "$HOME/.cli-sync/enable-auto-sync.sh"` once to install the shell hook; the script selects `~/.bashrc` or `~/.zshrc` from `$SHELL`
 - If you installed auto-sync with an older version while using zsh, rerun `bash "$HOME/.cli-sync/enable-auto-sync.sh"` after updating
 - Startup auto-pull uses a conservative `fetch + ff-only` strategy; if the repo has diverged or has local pending changes, it stops instead of creating a merge state silently
