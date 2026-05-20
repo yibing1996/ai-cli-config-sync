@@ -724,6 +724,8 @@ branch: main
 EOF
 
   cat > "$home/.copilot/config.json" <<'EOF'
+// User settings belong in settings.json.
+// This file is managed automatically.
 {
   "firstLaunchAt": "2026-01-01T00:00:00Z",
   "copilot_tokens": {
@@ -835,6 +837,8 @@ branch: main
 EOF
 
   cat > "$home/.copilot/config.json" <<'EOF'
+// User settings belong in settings.json.
+// This file is managed automatically.
 {
   "firstLaunchAt": "2026-01-01T00:00:00Z",
   "copilot_tokens": {

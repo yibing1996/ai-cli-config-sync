@@ -576,6 +576,8 @@ function Test-PushNodeFallback {
     $copilotDir = Join-Path $testCtx.HomeDir '.copilot'
     New-Item -ItemType Directory -Path $copilotDir -Force | Out-Null
     Set-Content -Path (Join-Path $copilotDir 'config.json') -Value @'
+// User settings belong in settings.json.
+// This file is managed automatically.
 {
   "banner": {
     "hidden": true
@@ -654,6 +656,8 @@ function Test-PullNodeFallback {
     $copilotDir = Join-Path $testCtx.HomeDir '.copilot'
     New-Item -ItemType Directory -Path $copilotDir -Force | Out-Null
     Set-Content -Path (Join-Path $copilotDir 'config.json') -Value @'
+// User settings belong in settings.json.
+// This file is managed automatically.
 {
   "firstLaunchAt": "2026-01-01T00:00:00Z",
   "copilot_tokens": {
@@ -724,7 +728,7 @@ function Test-StatusNoFalsePositive {
     $copilotDir = Join-Path $testCtx.HomeDir '.copilot'
     New-Item -ItemType Directory -Path $copilotDir -Force | Out-Null
     [IO.File]::WriteAllText((Join-Path $copilotDir 'copilot-instructions.md'), "# Shared`r`n")
-    [IO.File]::WriteAllText((Join-Path $copilotDir 'config.json'), "{`r`n  `"model`": `"gpt-5`"`r`n}`r`n")
+    [IO.File]::WriteAllText((Join-Path $copilotDir 'config.json'), "// User settings belong in settings.json.`r`n{`r`n  `"model`": `"gpt-5`"`r`n}`r`n")
 
     $extraEnv = @{
       PATH = $testCtx.FakeBinDir + ';' + (Get-PathWithoutPython)

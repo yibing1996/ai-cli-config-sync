@@ -397,8 +397,15 @@ import os
 remote = os.environ['REMOTE_FILE']
 local = os.environ['LOCAL_FILE']
 
-with open(local) as f:
-    local_data = json.load(f)
+def load_jsonc(path):
+    with open(path, encoding='utf-8-sig') as f:
+        text = ''.join(
+            line for line in f
+            if not line.lstrip().startswith('//')
+        )
+    return json.loads(text)
+
+local_data = load_jsonc(local)
 with open(remote) as f:
     remote_data = json.load(f)
 
@@ -424,9 +431,15 @@ PYEOF
     "${NODE_CMD[@]}" - "$node_remote" "$node_local" << 'JSEOF'
 const fs = require('fs');
 const readText = (path) => fs.readFileSync(path, 'utf8').replace(/^\uFEFF/, '');
+const readJsonc = (path) => JSON.parse(
+  readText(path)
+    .split(/\r?\n/)
+    .filter((line) => !line.trimStart().startsWith('//'))
+    .join('\n')
+);
 
 const [, , remote, local] = process.argv;
-const localData = JSON.parse(readText(local));
+const localData = readJsonc(local);
 const remoteData = JSON.parse(readText(remote));
 const result = { ...remoteData };
 
