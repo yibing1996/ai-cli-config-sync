@@ -472,6 +472,8 @@ branch: main
 EOF
 
   cat > "$home/.copilot/config.json" <<'EOF'
+// User settings belong in settings.json.
+// This file is managed automatically.
 {
   "firstLaunchAt": "2026-04-10T12:00:00Z",
   "banner": {
@@ -558,6 +560,8 @@ branch: main
 EOF
 
   cat > "$home/.copilot/config.json" <<'EOF'
+// User settings belong in settings.json.
+// This file is managed automatically.
 {
   "banner": {
     "hidden": true
@@ -1047,7 +1051,7 @@ run_status_crlf_node_fallback_smoke() {
   git -C "$home/.cli-sync-repo" commit -m "init" >/dev/null 2>&1
 
   printf '# Shared Instructions\r\n' > "$home/.copilot/copilot-instructions.md"
-  printf '{\r\n  "model": "gpt-5"\r\n}\r\n' > "$home/.copilot/config.json"
+  printf '// User settings belong in settings.json.\r\n{\r\n  "model": "gpt-5"\r\n}\r\n' > "$home/.copilot/config.json"
 
   PATH="$fakebin:$PATH" HOME="$home" bash "$ROOT_DIR/scripts/status.sh" >"$output_file" 2>&1
 

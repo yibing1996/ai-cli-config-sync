@@ -140,8 +140,15 @@ local_file = os.environ['LOCAL_FILE']
 out_file = os.environ['OUT_FILE']
 
 if kind == 'copilot-config':
-    with open(local_file) as f:
-        data = json.load(f)
+    def load_jsonc(path):
+        with open(path, encoding='utf-8-sig') as f:
+            text = ''.join(
+                line for line in f
+                if not line.lstrip().startswith('//')
+            )
+        return json.loads(text)
+
+    data = load_jsonc(local_file)
     result = {}
     for key in ('banner', 'model'):
         if key in data:
@@ -191,11 +198,17 @@ PYEOF
     "${NODE_CMD[@]}" - "$kind" "$node_local_file" "$node_out_file" << 'JSEOF'
 const fs = require('fs');
 const readText = (path) => fs.readFileSync(path, 'utf8').replace(/^\uFEFF/, '');
+const readJsonc = (path) => JSON.parse(
+  readText(path)
+    .split(/\r?\n/)
+    .filter((line) => !line.trimStart().startsWith('//'))
+    .join('\n')
+);
 
 const [, , kind, localFile, outFile] = process.argv;
 
 if (kind === 'copilot-config') {
-  const data = JSON.parse(readText(localFile));
+  const data = readJsonc(localFile);
   const result = {};
   for (const key of ['banner', 'model']) {
     if (Object.prototype.hasOwnProperty.call(data, key)) {

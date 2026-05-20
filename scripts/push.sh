@@ -160,8 +160,15 @@ import os
 src = os.environ['SRC']
 dst = os.environ['DST']
 
-with open(src) as f:
-    data = json.load(f)
+def load_jsonc(path):
+    with open(path, encoding='utf-8-sig') as f:
+        text = ''.join(
+            line for line in f
+            if not line.lstrip().startswith('//')
+        )
+    return json.loads(text)
+
+data = load_jsonc(src)
 
 # 仅同步明确安全、适合跨机器共享的字段。
 result = {}
@@ -180,9 +187,15 @@ PYEOF
     "${NODE_CMD[@]}" - "$node_src" "$node_dst" << 'JSEOF'
 const fs = require('fs');
 const readText = (path) => fs.readFileSync(path, 'utf8').replace(/^\uFEFF/, '');
+const readJsonc = (path) => JSON.parse(
+  readText(path)
+    .split(/\r?\n/)
+    .filter((line) => !line.trimStart().startsWith('//'))
+    .join('\n')
+);
 
 const [, , src, dst] = process.argv;
-const data = JSON.parse(readText(src));
+const data = readJsonc(src);
 
 const result = {};
 for (const key of ['banner', 'model']) {
