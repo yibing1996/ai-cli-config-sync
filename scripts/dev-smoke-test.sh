@@ -459,10 +459,12 @@ run_push_filter_smoke() {
   git -C "$home/.cli-sync-repo" config user.email smoke@example.com
   git -C "$home/.cli-sync-repo" remote add origin "$remote"
   git -C "$home/.cli-sync-repo" checkout -b main >/dev/null 2>&1
-  mkdir -p "$home/.cli-sync-repo/codex" "$home/.cli-sync-repo/claude"
+  mkdir -p "$home/.cli-sync-repo/codex/skills/remote-only" "$home/.cli-sync-repo/claude/skills/remote-only"
   printf 'old codex config\n' > "$home/.cli-sync-repo/codex/config.toml"
   printf '{"old": true}\n' > "$home/.cli-sync-repo/claude/settings.json"
-  git -C "$home/.cli-sync-repo" add codex/config.toml claude/settings.json >/dev/null 2>&1
+  printf '# remote claude skill\n' > "$home/.cli-sync-repo/claude/skills/remote-only/SKILL.md"
+  printf '# remote codex skill\n' > "$home/.cli-sync-repo/codex/skills/remote-only/SKILL.md"
+  git -C "$home/.cli-sync-repo" add codex/config.toml claude/settings.json claude/skills codex/skills >/dev/null 2>&1
   git -C "$home/.cli-sync-repo" commit -m "old private files" >/dev/null 2>&1
 
   cat > "$home/.cli-sync/config.yml" <<EOF
@@ -487,6 +489,9 @@ EOF
   "theme": "dark"
 }
 EOF
+  mkdir -p "$home/.claude/skills/local-only" "$home/.codex/skills/local-only"
+  printf '# local claude skill\n' > "$home/.claude/skills/local-only/SKILL.md"
+  printf '# local codex skill\n' > "$home/.codex/skills/local-only/SKILL.md"
 
   HOME="$home" bash "$ROOT_DIR/scripts/push.sh" >/dev/null 2>&1
 
@@ -496,6 +501,10 @@ EOF
   if [ -e "$home/.cli-sync-repo/claude/settings.json" ]; then
     fail "push.sh 不应保留 claude/settings.json"
   fi
+  assert_file "$home/.cli-sync-repo/claude/skills/remote-only/SKILL.md"
+  assert_file "$home/.cli-sync-repo/claude/skills/local-only/SKILL.md"
+  assert_file "$home/.cli-sync-repo/codex/skills/remote-only/SKILL.md"
+  assert_file "$home/.cli-sync-repo/codex/skills/local-only/SKILL.md"
 
   rm -rf "$tmpdir"
 }

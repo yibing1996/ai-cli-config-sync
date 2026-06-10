@@ -39,7 +39,7 @@ description: 将 AI CLI 工具（Claude Code CLI、GitHub Copilot CLI、Codex CL
 
 **同步：**
 - `CLAUDE.md` — AI 主指令文件
-- `skills/` — 全部自定义 Skill（镜像同步，含删除）
+- `skills/` — 全部自定义 Skill（增量同步，保留远端已有文件）
 - `plugins/blocklist.json` — 屏蔽插件列表
 - `plugins/known_marketplaces.json` — 已添加的 Marketplace 源
 
@@ -52,7 +52,7 @@ description: 将 AI CLI 工具（Claude Code CLI、GitHub Copilot CLI、Codex CL
 
 **同步：**
 - `AGENTS.md` — Agent 指令文件
-- `skills/` — 全部自定义 Skill（镜像同步，含删除）
+- `skills/` — 全部自定义 Skill（增量同步，保留远端已有文件）
 - `rules/` — 规则文件
 - `memories/` — AI 记忆文件
 

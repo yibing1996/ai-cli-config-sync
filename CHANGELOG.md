@@ -9,6 +9,7 @@
 ### 调整
 
 - 调整同步策略：`push.sh` 在采集并提交本机配置前，会先拉取并合并远端同步仓库。
+- 调整目录推送策略：Skill / Rule / Memory 采用增量覆盖，保留远端已有而本机暂时缺失的文件。
 - 停止同步 `~/.claude/settings.json` 与 `~/.codex/config.toml`，并在后续同步时删除仓库中的旧副本。
 - 更新 `pull.sh`、`status.sh`、README 与 Skill 文档，使同步范围与新策略一致。
 

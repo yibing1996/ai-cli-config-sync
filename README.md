@@ -183,7 +183,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-syn
 |---|---|---|
 | `~/.claude/CLAUDE.md` | ✅ | AI 主指令 |
 | `~/.claude/settings.json` | ❌ | 本机偏好、权限和环境相关配置，各机器独立维护 |
-| `~/.claude/skills/` | ✅ | 全部自定义 Skill（镜像同步，含删除） |
+| `~/.claude/skills/` | ✅ | 全部自定义 Skill（增量同步，保留远端已有文件） |
 | `~/.claude/plugins/blocklist.json` | ✅ | 屏蔽插件列表 |
 | `~/.claude/plugins/known_marketplaces.json` | ✅ | 添加的 Marketplace 源 |
 | `~/.claude/plugins/marketplaces/` | ❌ | 缓存，可重新下载 |
@@ -195,7 +195,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-syn
 |---|---|---|
 | `~/.codex/AGENTS.md` | ✅ | Agent 指令 |
 | `~/.codex/config.toml` | ❌ | MCP 命令路径、模型偏好、信任目录和环境相关配置，各机器独立维护 |
-| `~/.codex/skills/` | ✅ | 全部自定义 Skill（镜像同步，含删除） |
+| `~/.codex/skills/` | ✅ | 全部自定义 Skill（增量同步，保留远端已有文件） |
 | `~/.codex/rules/` | ✅ | 规则文件 |
 | `~/.codex/memories/` | ✅ | AI 记忆 |
 | `~/.codex/auth.json` | ❌ | 登录 Token（各机器独立） |

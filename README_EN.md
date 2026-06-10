@@ -183,7 +183,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-syn
 |---|---|---|
 | `~/.claude/CLAUDE.md` | ✅ | Main AI instructions |
 | `~/.claude/settings.json` | ❌ | Machine-local preferences, permissions, and environment-related settings |
-| `~/.claude/skills/` | ✅ | All custom Skills (mirror sync, including deletions) |
+| `~/.claude/skills/` | ✅ | All custom Skills (incremental sync; remote-only files are preserved) |
 | `~/.claude/plugins/blocklist.json` | ✅ | Blocked plugins list |
 | `~/.claude/plugins/known_marketplaces.json` | ✅ | Added marketplace sources |
 | `~/.claude/plugins/marketplaces/` | ❌ | Cache, re-downloadable |
@@ -195,7 +195,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-syn
 |---|---|---|
 | `~/.codex/AGENTS.md` | ✅ | Agent instructions |
 | `~/.codex/config.toml` | ❌ | MCP command paths, model preferences, trusted folders, and environment-related settings |
-| `~/.codex/skills/` | ✅ | All custom Skills (mirror sync, including deletions) |
+| `~/.codex/skills/` | ✅ | All custom Skills (incremental sync; remote-only files are preserved) |
 | `~/.codex/rules/` | ✅ | Rules files |
 | `~/.codex/memories/` | ✅ | AI memories |
 | `~/.codex/auth.json` | ❌ | Login tokens (per-machine) |

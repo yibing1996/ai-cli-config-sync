@@ -176,15 +176,15 @@ _merge_remote_branch_before_push "$REMOTE" "$BRANCH"
 
 echo "📦 收集配置文件..."
 
-# ── 目录镜像同步（含 --delete 保证删除也同步）────────────────────────────────
+# ── 目录增量同步：保留远端已有文件，避免拉取合并后被本机空缺误删 ───────────────
 _sync_dir() {
   local src="$1" dst="$2"
   [ -d "$src" ] || return 0
   mkdir -p "$dst"
   if command -v rsync &> /dev/null; then
-    rsync -a --delete "$src/" "$dst/"
+    rsync -a "$src/" "$dst/"
   else
-    rm -rf "$dst" && cp -r "$src" "$dst"
+    cp -R "$src/." "$dst/"
   fi
 }
 
