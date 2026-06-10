@@ -74,37 +74,45 @@ run_syntax_check() {
 
 run_docs_consistency_check() {
   log "检查文档中的安全同步语义"
-  assert_contains "$ROOT_DIR/README.md" '安全同步（先推送本地改动；失败即停）'
+  assert_contains "$ROOT_DIR/README.md" '安全同步（先拉取合并远端，再推送本地改动）'
   assert_contains "$ROOT_DIR/README.md" 'install.ps1'
   assert_contains "$ROOT_DIR/README.md" 'Windows PowerShell'
-  assert_not_contains "$ROOT_DIR/README.md" '先保守拉取，再推送'
+  assert_not_contains "$ROOT_DIR/README.md" '安全同步（先推送本地改动；失败即停）'
   assert_contains "$ROOT_DIR/README.md" '### GitHub Copilot CLI'
   assert_contains "$ROOT_DIR/README.md" '### Claude Code CLI'
   assert_not_contains "$ROOT_DIR/README.md" '### GitHub Copilot CLI / Claude Code CLI'
+  assert_contains "$ROOT_DIR/README.md" '`~/.claude/settings.json` | ❌'
+  assert_contains "$ROOT_DIR/README.md" '`~/.codex/config.toml` | ❌'
   assert_contains "$ROOT_DIR/README.md" '根据 `$SHELL` 选择 `~/.bashrc` 或 `~/.zshrc`'
-  assert_contains "$ROOT_DIR/README_EN.md" 'Safe sync (push local changes first; stop on failure)'
+  assert_contains "$ROOT_DIR/README_EN.md" 'Safe sync (pull and merge remote first, then push local changes)'
   assert_contains "$ROOT_DIR/README_EN.md" 'install.ps1'
   assert_contains "$ROOT_DIR/README_EN.md" 'Windows PowerShell'
-  assert_not_contains "$ROOT_DIR/README_EN.md" 'safe pull first, then push'
+  assert_not_contains "$ROOT_DIR/README_EN.md" 'Safe sync (push local changes first; stop on failure)'
   assert_contains "$ROOT_DIR/README_EN.md" '### GitHub Copilot CLI'
   assert_contains "$ROOT_DIR/README_EN.md" '### Claude Code CLI'
   assert_not_contains "$ROOT_DIR/README_EN.md" '### GitHub Copilot CLI / Claude Code CLI'
+  assert_contains "$ROOT_DIR/README_EN.md" '`~/.claude/settings.json` | ❌'
+  assert_contains "$ROOT_DIR/README_EN.md" '`~/.codex/config.toml` | ❌'
   assert_contains "$ROOT_DIR/README_EN.md" 'selects `~/.bashrc` or `~/.zshrc` from `$SHELL`'
-  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '安全同步（先推送，失败即停）'
+  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '安全同步（先拉取合并，再推送）'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" 'Windows 原生终端（PowerShell / cmd）'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" 'setup.ps1'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" 'enable-auto-sync.ps1'
-  assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '先 pull 再 push'
+  assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '安全同步（先推送，失败即停）'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '### GitHub Copilot CLI（`~/.copilot/`）'
   assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '### GitHub Copilot CLI / Claude Code CLI（`~/.claude/`）'
+  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '`settings.json` — 本机偏好'
+  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '`config.toml` — MCP 命令路径'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync/SKILL.md" '根据 `$SHELL` 把 hook 写入 `~/.bashrc` 或 `~/.zshrc`'
-  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '安全同步（先推送，失败即停）'
+  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '安全同步（先拉取合并，再推送）'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" 'Windows 原生终端（PowerShell / cmd）'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" 'setup.ps1'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" 'enable-auto-sync.ps1'
-  assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '先 pull 再 push'
+  assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '安全同步（先推送，失败即停）'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '### GitHub Copilot CLI（`~/.copilot/`）'
   assert_not_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '### GitHub Copilot CLI / Claude Code CLI（`~/.claude/`）'
+  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '`settings.json` — 本机偏好'
+  assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '`config.toml` — MCP 命令路径'
   assert_contains "$ROOT_DIR/skills/ai-cli-config-sync-codex/SKILL.md" '根据 `$SHELL` 把 hook 写入 `~/.bashrc` 或 `~/.zshrc`'
 }
 
@@ -371,24 +379,46 @@ EOF
 }
 
 run_sync_pushes_smoke() {
-  local tmpdir home remote remote_dump
+  local tmpdir home remote remote_dump remote_work
   tmpdir="$(make_tmpdir)"
   home="$tmpdir/home"
   remote="$tmpdir/remote.git"
   remote_dump="$tmpdir/remote-dump"
+  remote_work="$tmpdir/remote-work"
 
-  log "验证 sync.sh 会优先推送本地配置"
+  log "验证 sync.sh 会先合并远端再推送本地配置"
   HOME="$home" bash "$ROOT_DIR/install.sh" >/dev/null 2>&1
 
   git init --bare "$remote" >/dev/null 2>&1
   git --git-dir="$remote" symbolic-ref HEAD refs/heads/main
 
-  mkdir -p "$home/.cli-sync-repo" "$home/.cli-sync" "$home/.codex"
-  git init "$home/.cli-sync-repo" >/dev/null 2>&1
+  git init "$remote_work" >/dev/null 2>&1
+  git -C "$remote_work" config user.name smoke-test
+  git -C "$remote_work" config user.email smoke@example.com
+  mkdir -p "$remote_work/copilot"
+  cat > "$remote_work/copilot/copilot-instructions.md" <<'EOF'
+# remote
+merged before push
+EOF
+  git -C "$remote_work" add copilot/copilot-instructions.md >/dev/null 2>&1
+  git -C "$remote_work" commit -m "remote seed" >/dev/null 2>&1
+  git -C "$remote_work" branch -M main
+  git -C "$remote_work" remote add origin "$remote"
+  git -C "$remote_work" push origin main >/dev/null 2>&1
+
+  mkdir -p "$home/.cli-sync" "$home/.codex"
+  git clone "$remote" "$home/.cli-sync-repo" >/dev/null 2>&1
   git -C "$home/.cli-sync-repo" config user.name smoke-test
   git -C "$home/.cli-sync-repo" config user.email smoke@example.com
-  git -C "$home/.cli-sync-repo" remote add origin "$remote"
-  git -C "$home/.cli-sync-repo" checkout -b main >/dev/null 2>&1
+
+  mkdir -p "$remote_work/claude"
+  cat > "$remote_work/claude/CLAUDE.md" <<'EOF'
+# remote
+newer remote change
+EOF
+  git -C "$remote_work" add claude/CLAUDE.md >/dev/null 2>&1
+  git -C "$remote_work" commit -m "remote update" >/dev/null 2>&1
+  git -C "$remote_work" push origin main >/dev/null 2>&1
 
   cat > "$home/.cli-sync/config.yml" <<EOF
 remote: $remote
@@ -407,24 +437,33 @@ EOF
   git clone "$remote" "$remote_dump" >/dev/null 2>&1
   assert_file "$remote_dump/codex/AGENTS.md"
   assert_contains "$remote_dump/codex/AGENTS.md" 'sync.sh works'
+  assert_file "$remote_dump/claude/CLAUDE.md"
+  assert_contains "$remote_dump/claude/CLAUDE.md" 'newer remote change'
+  assert_file "$remote_dump/copilot/copilot-instructions.md"
+  assert_contains "$remote_dump/copilot/copilot-instructions.md" 'merged before push'
 
   rm -rf "$tmpdir"
 }
 
 run_push_filter_smoke() {
-  local tmpdir home remote filtered
+  local tmpdir home remote
   tmpdir="$(make_tmpdir)"
   home="$tmpdir/home"
   remote="$tmpdir/remote.git"
 
-  log "验证 push.sh 会过滤缩进版敏感字段"
-  mkdir -p "$home/.cli-sync-repo" "$home/.cli-sync" "$home/.codex"
+  log "验证 push.sh 不再同步 Claude settings.json 和 Codex config.toml"
+  mkdir -p "$home/.cli-sync-repo" "$home/.cli-sync" "$home/.codex" "$home/.claude"
   git init --bare "$remote" >/dev/null 2>&1
   git init "$home/.cli-sync-repo" >/dev/null 2>&1
   git -C "$home/.cli-sync-repo" config user.name smoke-test
   git -C "$home/.cli-sync-repo" config user.email smoke@example.com
   git -C "$home/.cli-sync-repo" remote add origin "$remote"
   git -C "$home/.cli-sync-repo" checkout -b main >/dev/null 2>&1
+  mkdir -p "$home/.cli-sync-repo/codex" "$home/.cli-sync-repo/claude"
+  printf 'old codex config\n' > "$home/.cli-sync-repo/codex/config.toml"
+  printf '{"old": true}\n' > "$home/.cli-sync-repo/claude/settings.json"
+  git -C "$home/.cli-sync-repo" add codex/config.toml claude/settings.json >/dev/null 2>&1
+  git -C "$home/.cli-sync-repo" commit -m "old private files" >/dev/null 2>&1
 
   cat > "$home/.cli-sync/config.yml" <<EOF
 remote: $remote
@@ -440,13 +479,23 @@ EOF
    name = "gpt-5"
 EOF
 
+  cat > "$home/.claude/settings.json" <<'EOF'
+{
+  "env": {
+    "ANTHROPIC_API_KEY": "secret"
+  },
+  "theme": "dark"
+}
+EOF
+
   HOME="$home" bash "$ROOT_DIR/scripts/push.sh" >/dev/null 2>&1
 
-  filtered="$home/.cli-sync-repo/codex/config.toml"
-  assert_file "$filtered"
-  assert_not_contains "$filtered" 'OPENAI_API_KEY'
-  assert_not_contains "$filtered" '[projects."/tmp/proj"]'
-  assert_contains "$filtered" 'name = "gpt-5"'
+  if [ -e "$home/.cli-sync-repo/codex/config.toml" ]; then
+    fail "push.sh 不应保留 codex/config.toml"
+  fi
+  if [ -e "$home/.cli-sync-repo/claude/settings.json" ]; then
+    fail "push.sh 不应保留 claude/settings.json"
+  fi
 
   rm -rf "$tmpdir"
 }
@@ -602,13 +651,13 @@ EOF
   rm -rf "$tmpdir"
 }
 
-run_pull_merge_smoke() {
+run_pull_preserves_private_files_smoke() {
   local tmpdir home remote merged settings
   tmpdir="$(make_tmpdir)"
   home="$tmpdir/home"
   remote="$tmpdir/remote.git"
 
-  log "验证 pull.sh 会保留本机私有字段"
+  log "验证 pull.sh 不还原 Claude settings.json 和 Codex config.toml"
   git init --bare "$remote" >/dev/null 2>&1
   git init "$tmpdir/src" >/dev/null 2>&1
   git -C "$tmpdir/src" config user.name smoke-test
@@ -665,8 +714,9 @@ EOF
 
   assert_contains "$merged" 'OPENAI_API_KEY'
   assert_contains "$merged" '[projects."/tmp/proj"]'
+  assert_not_contains "$merged" 'name = "gpt-5"'
   assert_contains "$settings" 'ANTHROPIC_API_KEY'
-  assert_contains "$settings" '"theme": "light"'
+  assert_not_contains "$settings" '"theme": "light"'
 
   rm -rf "$tmpdir"
 }
@@ -886,13 +936,13 @@ EOF
   rm -rf "$tmpdir"
 }
 
-run_pull_special_path_smoke() {
+run_pull_private_config_special_path_smoke() {
   local tmpdir home remote merged
   tmpdir="$(make_tmpdir)"
   home="$tmpdir/home spaced dir"
   remote="$tmpdir/remote.git"
 
-  log "验证 pull.sh 在特殊路径下的 Python 合并逻辑"
+  log "验证 pull.sh 在特殊路径下仍保留本机 Codex config.toml"
   git init --bare "$remote" >/dev/null 2>&1
   git init "$tmpdir/src" >/dev/null 2>&1
   git -C "$tmpdir/src" config user.name smoke-test
@@ -933,7 +983,7 @@ EOF
   merged="$home/.codex/config.toml"
   assert_contains "$merged" 'OPENAI_API_KEY'
   assert_contains "$merged" '[projects."/tmp/proj"]'
-  assert_contains "$merged" 'name = "gpt-5"'
+  assert_not_contains "$merged" 'name = "gpt-5"'
 
   rm -rf "$tmpdir"
 }
@@ -1078,10 +1128,10 @@ main() {
   run_push_filter_smoke
   run_copilot_push_filter_smoke
   run_copilot_push_node_fallback_smoke
-  run_pull_merge_smoke
+  run_pull_preserves_private_files_smoke
   run_copilot_pull_merge_smoke
   run_copilot_pull_node_fallback_smoke
-  run_pull_special_path_smoke
+  run_pull_private_config_special_path_smoke
   run_pull_diverge_smoke
   run_setup_existing_repo_prefers_pull_smoke
   run_status_crlf_node_fallback_smoke

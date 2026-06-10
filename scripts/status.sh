@@ -133,7 +133,6 @@ _sanitized_diff() {
     env KIND="$kind" LOCAL_FILE="$local_file" OUT_FILE="$out_file" "${PYTHON_CMD[@]}" << 'PYEOF'
 import json
 import os
-import re
 
 kind = os.environ['KIND']
 local_file = os.environ['LOCAL_FILE']
@@ -168,26 +167,6 @@ elif kind == 'copilot-mcp':
     with open(out_file, 'w') as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
         f.write('\n')
-elif kind == 'codex-config':
-    with open(local_file) as f:
-        lines = f.readlines()
-    result = []
-    skip_section = False
-    for line in lines:
-        if re.match(r'^\s*\[projects\.', line):
-            skip_section = True
-            continue
-        if re.match(r'^\s*\[(?!projects\.)', line):
-            skip_section = False
-        if skip_section:
-            continue
-        if re.match(r'^\s*env\s*=\s*\{', line):
-            indent = re.match(r'^(\s*)', line).group(1)
-            result.append(f'{indent}# env = {{ ... }}  # 已过滤，请在本机手动配置\n')
-            continue
-        result.append(line)
-    with open(out_file, 'w') as f:
-        f.write(''.join(result).rstrip('\n') + '\n')
 else:
     raise SystemExit(f'unknown kind: {kind}')
 PYEOF
@@ -228,34 +207,6 @@ if (kind === 'copilot-config') {
     }
   }
   fs.writeFileSync(outFile, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
-} else if (kind === 'codex-config') {
-  const rawLines = readText(localFile).replace(/\r\n/g, '\n').split('\n');
-  if (rawLines.length > 0 && rawLines[rawLines.length - 1] === '') {
-    rawLines.pop();
-  }
-
-  const result = [];
-  let skipSection = false;
-  for (const rawLine of rawLines) {
-    const line = `${rawLine}\n`;
-    if (/^\s*\[projects\./.test(line)) {
-      skipSection = true;
-      continue;
-    }
-    if (/^\s*\[(?!projects\.)/.test(line)) {
-      skipSection = false;
-    }
-    if (skipSection) {
-      continue;
-    }
-    if (/^\s*env\s*=\s*\{/.test(line)) {
-      const indent = (line.match(/^(\s*)/) || [''])[1];
-      result.push(`${indent}# env = { ... }  # 已过滤，请在本机手动配置\n`);
-      continue;
-    }
-    result.push(line);
-  }
-  fs.writeFileSync(outFile, `${result.join('').replace(/\n*$/, '')}\n`, 'utf8');
 } else {
   throw new Error(`unknown kind: ${kind}`);
 }
@@ -320,11 +271,6 @@ for f in AGENTS.md; do
     fi
   fi
 done
-
-if _sanitized_diff "codex-config" "$HOME/.codex/config.toml" "$REPO/codex/config.toml" "$TMP_DIR/codex-config.toml"; then
-  echo "  📝 codex/config.toml 有本地未推送的共享配置修改"
-  CHANGED=1
-fi
 
 if [ "$CHANGED" -eq 0 ]; then
   echo "  ✅ 所有核心配置文件与仓库一致"

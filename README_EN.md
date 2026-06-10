@@ -16,8 +16,8 @@ You've carefully configured your AI CLI tools:
 
 - Crafted detailed instructions in `CLAUDE.md` / `AGENTS.md`
 - Installed dozens of custom Skills
-- Configured MCP servers (Context7, DeepWiki, Sequential Thinking...)
-- Fine-tuned model parameters in `config.toml`
+- Configured shareable Copilot MCP servers
+- Organized rules, memories, and plugin blocklists
 
 Then you switch machines... and it's all gone. 😩
 
@@ -143,14 +143,14 @@ AI:  ✅ Setup complete, auto-detecting remote status and syncing...
 
 | You say | Action |
 |---|---|
-| `sync my configs` | Safe sync (push local changes first; stop on failure) |
+| `sync my configs` | Safe sync (pull and merge remote first, then push local changes) |
 | `push configs` | Push local changes to remote |
 | `pull configs` | Pull remote configs to local |
 | `sync status` | Show which files have local changes |
 | `enable auto sync` | Set up shell hook for automatic sync |
 
 Note:
-To avoid deleting local-only Skills / Rules / Memories during a mirror-style pull, `sync my configs` now pushes local changes first. If the push fails, the flow stops instead of auto-pulling over your unpublished local files.
+`sync my configs` first pulls and merges the remote sync repo, then collects shared local configs, commits, and pushes. If merge conflicts, authentication errors, or push failures occur, the flow stops and reports the issue.
 
 ### New machine setup
 
@@ -182,7 +182,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-syn
 | File | Synced | Notes |
 |---|---|---|
 | `~/.claude/CLAUDE.md` | ✅ | Main AI instructions |
-| `~/.claude/settings.json` | ✅ filtered | `env` field (API tokens) removed automatically |
+| `~/.claude/settings.json` | ❌ | Machine-local preferences, permissions, and environment-related settings |
 | `~/.claude/skills/` | ✅ | All custom Skills (mirror sync, including deletions) |
 | `~/.claude/plugins/blocklist.json` | ✅ | Blocked plugins list |
 | `~/.claude/plugins/known_marketplaces.json` | ✅ | Added marketplace sources |
@@ -194,7 +194,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-syn
 | File | Synced | Notes |
 |---|---|---|
 | `~/.codex/AGENTS.md` | ✅ | Agent instructions |
-| `~/.codex/config.toml` | ✅ filtered | `[projects.*]` (local paths) and `env` (tokens) auto-filtered |
+| `~/.codex/config.toml` | ❌ | MCP command paths, model preferences, trusted folders, and environment-related settings |
 | `~/.codex/skills/` | ✅ | All custom Skills (mirror sync, including deletions) |
 | `~/.codex/rules/` | ✅ | Rules files |
 | `~/.codex/memories/` | ✅ | AI memories |
@@ -224,10 +224,10 @@ The local Git working directory is at `~/.cli-sync-repo/`.
 - **Private repository strongly recommended** (configs contain personal preferences and tool configurations)
 - `~/.copilot/config.json` syncs only clearly safe shared fields (currently `banner` and `model`); `copilot_tokens`, login state, `trusted_folders`, and `firstLaunchAt` stay local
 - `~/.copilot/mcp-config.json` automatically strips per-server `env` before upload and restores local `env` on pull when possible
-- The `env` field in `settings.json` (API tokens) is **automatically filtered out**
-- `config.toml`: `[projects.*]` sections (local paths) and `env` fields (potential tokens) are **automatically filtered out**
+- `~/.claude/settings.json` is **not synced** and remains machine-local
+- `~/.codex/config.toml` is **not synced** and remains machine-local
 - `auth.json` (login tokens) is **never synced** — you must log in on each machine
-- After pulling on a new machine, check MCP server command paths in both `config.toml` and `~/.copilot/mcp-config.json` for compatibility
+- After pulling on a new machine, check MCP server command paths in `~/.copilot/mcp-config.json` for compatibility
 - Add additional sensitive paths to `.gitignore` in your sync repo as needed
 
 ---
@@ -237,7 +237,7 @@ The local Git working directory is at `~/.cli-sync-repo/`.
 - The project is currently validated mainly in **GitHub + WSL / Git Bash / Linux / macOS / Windows PowerShell** environments; test Gitee or other environments before relying on them
 - Auto-sync uses a conservative fast-forward-only strategy; if the local sync repo has divergence, uncommitted changes, or unpushed commits, auto-pull stops instead of forcing a merge
 - Runtime-local data such as `auth.json`, `vendor_imports/`, databases, sessions, and caches are intentionally not synced
-- After restore, manually verify machine-specific paths in both `config.toml` and `~/.copilot/mcp-config.json`, such as MCP command paths, interpreter locations, and working directories
+- After restore, manually verify machine-specific paths in `~/.copilot/mcp-config.json`, such as MCP command paths, interpreter locations, and working directories
 - Native Windows shells are now supported through `install.ps1`, `push.ps1`, `pull.ps1`, and related wrappers; if you still run `*.sh` directly, prefer Git Bash and keep repository `*.sh` files on `LF` line endings
 
 ---
@@ -246,7 +246,7 @@ The local Git working directory is at `~/.cli-sync-repo/`.
 
 - `bash` (required; on Windows, Git for Windows is recommended because it ships Git Bash)
 - `git` (required)
-- `jq`, a working Python runtime (`python3`, `python`, or `py -3` on Windows), or `node` (recommended for filtering sensitive fields in settings.json / config.toml and smart merging on pull; if `python3` on Windows is only the Microsoft Store alias, the scripts automatically fall back to `node`)
+- `jq`, a working Python runtime (`python3`, `python`, or `py -3` on Windows), or `node` (recommended for filtering Copilot private fields and smart merging on pull; if `python3` on Windows is only the Microsoft Store alias, the scripts automatically fall back to `node`)
 - `rsync` (optional, for efficient directory sync; falls back to `cp`)
 - Git global identity (`git config --global user.name` and `user.email`)
 
@@ -306,7 +306,7 @@ If you plan to use this against a real config repository, verify at least the fo
 - On a machine that already has real configs, run install, initialization, and first push; confirm the remote repo contains the expected files
 - Validate restore behavior in a **clean environment**, such as a second machine, a container, or a temporary `HOME` directory
 - After restore succeeds on the second machine, modify `AGENTS.md`, `CLAUDE.md`, or one custom Skill, then run another push and pull to confirm two-way sync
-- Check that `env` in `settings.json`, plus `env` and `[projects.*]` in `config.toml`, and the login / token / `trusted_folders` fields in `~/.copilot/config.json` stay local and are not uploaded to the remote repo
+- Check that `~/.claude/settings.json`, `~/.codex/config.toml`, and the login / token / `trusted_folders` fields in `~/.copilot/config.json` stay local and are not uploaded to the remote repo
 - On Windows, verify at least one “PowerShell startup auto-pull” and one “PowerShell exit auto-push” flow, and confirm `~/.cli-sync/auto-sync.log` remains readable
 - On Unix / WSL, verify at least one “new shell auto-pull” and one “shell exit auto-push” flow, and confirm the hook was written into the login shell's `~/.bashrc` or `~/.zshrc`
 - Trigger one auto-sync scenario and inspect `~/.cli-sync/auto-sync.log` to confirm there are no auth failures, divergence issues, or fast-forward failures

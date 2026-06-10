@@ -134,6 +134,46 @@ if [ -z "$GIT_NAME" ] || [ -z "$GIT_EMAIL" ]; then
   exit 1
 fi
 
+echo "🔄 拉取并合并远端同步仓库..."
+cd "$REPO"
+
+# ── 推送前先合并远端：保持像普通项目一样先 pull 再 commit/push ──────────────
+_merge_remote_branch_before_push() {
+  local remote="$1" branch="$2"
+  local ls_output ls_status
+
+  set +e
+  ls_output=$(git ls-remote --exit-code --heads "$remote" "$branch" 2>&1)
+  ls_status=$?
+  set -e
+
+  if [ "$ls_status" -eq 2 ]; then
+    echo "ℹ️  远端分支 $branch 尚不存在，将在本次同步中首次推送"
+    return 0
+  fi
+
+  if [ "$ls_status" -ne 0 ]; then
+    echo "❌ 检查远端分支失败，请检查网络连接、远端地址或认证配置"
+    echo "   远端：$remote  分支：$branch"
+    echo "$ls_output"
+    exit 1
+  fi
+
+  if ! git fetch "$remote" "$branch"; then
+    echo "❌ git fetch 失败，请检查网络连接、远端地址或认证配置"
+    echo "   远端：$remote  分支：$branch"
+    exit 1
+  fi
+
+  if ! git merge --no-edit FETCH_HEAD; then
+    echo "❌ 合并远端同步仓库失败，已停止推送"
+    echo "   请先在 ~/.cli-sync-repo 中解决冲突后，再重新执行同步"
+    exit 1
+  fi
+}
+
+_merge_remote_branch_before_push "$REMOTE" "$BRANCH"
+
 echo "📦 收集配置文件..."
 
 # ── 目录镜像同步（含 --delete 保证删除也同步）────────────────────────────────
@@ -286,41 +326,8 @@ if [ -d "$CLAUDE_DIR" ]; then
   # CLAUDE.md
   [ -f "$CLAUDE_DIR/CLAUDE.md" ] && cp "$CLAUDE_DIR/CLAUDE.md" "$REPO/claude/"
 
-  # settings.json（过滤 env 字段，含 API Token）
-  if [ -f "$CLAUDE_DIR/settings.json" ]; then
-    if command -v jq &> /dev/null; then
-      jq 'del(.env)' "$CLAUDE_DIR/settings.json" > "$REPO/claude/settings.json"
-    elif _detect_python; then
-      _run_python << 'PYEOF'
-import json, os
-src = os.path.expanduser('~/.claude/settings.json')
-dst = os.path.expanduser('~/.cli-sync-repo/claude/settings.json')
-with open(src) as f:
-    d = json.load(f)
-d.pop('env', None)
-with open(dst, 'w') as f:
-    json.dump(d, f, indent=2, ensure_ascii=False)
-PYEOF
-    elif _has_node; then
-      local node_src node_dst
-      node_src=$(_node_path_arg "$CLAUDE_DIR/settings.json")
-      node_dst=$(_node_path_arg "$REPO/claude/settings.json")
-      "${NODE_CMD[@]}" - "$node_src" "$node_dst" << 'JSEOF'
-const fs = require('fs');
-const readText = (path) => fs.readFileSync(path, 'utf8').replace(/^\uFEFF/, '');
-
-const [, , src, dst] = process.argv;
-const data = JSON.parse(readText(src));
-
-delete data.env;
-
-fs.writeFileSync(dst, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
-JSEOF
-    else
-      echo "⚠️  未找到 jq、可用的 Python 或 node，settings.json 将完整复制（请确保使用私有仓库）"
-      cp "$CLAUDE_DIR/settings.json" "$REPO/claude/"
-    fi
-  fi
+  # settings.json 含本机偏好和潜在敏感字段，不再同步；同时删除仓库中的旧副本。
+  rm -f "$REPO/claude/settings.json"
 
   # plugins 配置文件
   [ -f "$CLAUDE_DIR/plugins/blocklist.json" ] && cp "$CLAUDE_DIR/plugins/blocklist.json" "$REPO/claude/plugins/"
@@ -337,87 +344,8 @@ if [ -d "$CODEX_DIR" ]; then
   # AGENTS.md
   [ -f "$CODEX_DIR/AGENTS.md" ] && cp "$CODEX_DIR/AGENTS.md" "$REPO/codex/"
 
-  # config.toml（过滤 [projects.*] 段和 env 字段）
-  if [ -f "$CODEX_DIR/config.toml" ]; then
-    if _detect_python; then
-      _run_python << 'PYEOF'
-import re, os
-
-src = os.path.expanduser('~/.codex/config.toml')
-dst = os.path.expanduser('~/.cli-sync-repo/codex/config.toml')
-
-with open(src) as f:
-    lines = f.readlines()
-
-result = []
-skip_section = False
-for line in lines:
-    # 跳过 [projects.*] 段（含本机绝对路径和信任配置）
-    if re.match(r'^\s*\[projects\.', line):
-        skip_section = True
-        continue
-    # 遇到新的非 projects 段，恢复正常
-    if re.match(r'^\s*\[(?!projects\.)', line):
-        skip_section = False
-    if skip_section:
-        continue
-    # 过滤 env = { ... } 行（可能含 API Token，允许前导空白/缩进）
-    if re.match(r'^\s*env\s*=\s*\{', line):
-        indent = re.match(r'^(\s*)', line).group(1)
-        result.append(f'{indent}# env = {{ ... }}  # 已过滤，请在本机手动配置\n')
-        continue
-    result.append(line)
-
-# 清理末尾多余空行
-content = ''.join(result).rstrip('\n') + '\n'
-with open(dst, 'w') as f:
-    f.write(content)
-PYEOF
-    elif _has_node; then
-      local node_src node_dst
-      node_src=$(_node_path_arg "$CODEX_DIR/config.toml")
-      node_dst=$(_node_path_arg "$REPO/codex/config.toml")
-      "${NODE_CMD[@]}" - "$node_src" "$node_dst" << 'JSEOF'
-const fs = require('fs');
-const readText = (path) => fs.readFileSync(path, 'utf8').replace(/^\uFEFF/, '');
-
-const [, , src, dst] = process.argv;
-const rawLines = readText(src).replace(/\r\n/g, '\n').split('\n');
-if (rawLines.length > 0 && rawLines[rawLines.length - 1] === '') {
-  rawLines.pop();
-}
-
-const result = [];
-let skipSection = false;
-
-for (const rawLine of rawLines) {
-  const line = `${rawLine}\n`;
-  if (/^\s*\[projects\./.test(line)) {
-    skipSection = true;
-    continue;
-  }
-  if (/^\s*\[(?!projects\.)/.test(line)) {
-    skipSection = false;
-  }
-  if (skipSection) {
-    continue;
-  }
-  if (/^\s*env\s*=\s*\{/.test(line)) {
-    const indent = (line.match(/^(\s*)/) || [''])[1];
-    result.push(`${indent}# env = { ... }  # 已过滤，请在本机手动配置\n`);
-    continue;
-  }
-  result.push(line);
-}
-
-const content = `${result.join('').replace(/\n*$/, '')}\n`;
-fs.writeFileSync(dst, content, 'utf8');
-JSEOF
-    else
-      echo "⚠️  未找到可用的 Python 或 node，config.toml 将完整复制（[projects] 和 env 未过滤，请确保使用私有仓库）"
-      cp "$CODEX_DIR/config.toml" "$REPO/codex/"
-    fi
-  fi
+  # config.toml 含 MCP 路径、模型偏好和本机信任配置，不再同步；同时删除仓库中的旧副本。
+  rm -f "$REPO/codex/config.toml"
 
   # 目录同步
   _sync_dir "$CODEX_DIR/skills"   "$REPO/codex/skills"

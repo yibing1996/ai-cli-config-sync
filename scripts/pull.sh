@@ -3,10 +3,9 @@
 # 由 ai-cli-config-sync 安装到 ~/.cli-sync/pull.sh
 #
 # 核心策略：拉取远端配置覆盖本地，但保留本机私有字段：
-#   - settings.json 的 env 字段（API Token）
-#   - config.toml 的 [projects.*] 段和 env 字段
 #   - Copilot config.json 的登录态、Token 与本机信任目录
 #   - Copilot mcp-config.json 中各 server 的 env 字段
+#   - Claude settings.json 与 Codex config.toml 完全保留本机版本，不再同步
 set -e
 
 CONFIG_FILE="$HOME/.cli-sync/config.yml"
@@ -168,214 +167,6 @@ _restore_dir() {
     rsync -a --delete "$src/" "$dst/"
   else
     rm -rf "$dst" && cp -r "$src" "$dst"
-  fi
-}
-
-# ── settings.json 智能合并：用远端内容 + 保留本机 env ─────────────────────────
-_merge_settings_json() {
-  local remote_file="$1" local_file="$2"
-  [ -f "$remote_file" ] || return 0
-
-  # 如果本地不存在，直接复制
-  if [ ! -f "$local_file" ]; then
-    cp "$remote_file" "$local_file"
-    return 0
-  fi
-
-  # 有 jq 时：远端内容 + 保留本机 env
-  if command -v jq &> /dev/null; then
-    local LOCAL_ENV
-    LOCAL_ENV=$(jq -c '.env // empty' "$local_file" 2>/dev/null || true)
-    if [ -n "$LOCAL_ENV" ]; then
-      jq --argjson env "$LOCAL_ENV" '. + {env: $env}' "$remote_file" > "$local_file.tmp"
-      mv "$local_file.tmp" "$local_file"
-    else
-      cp "$remote_file" "$local_file"
-    fi
-  elif _detect_python; then
-    env REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" "${PYTHON_CMD[@]}" << 'PYEOF'
-import json, os
-remote = os.environ['REMOTE_FILE']
-local = os.environ['LOCAL_FILE']
-
-with open(local) as f:
-    local_data = json.load(f)
-with open(remote) as f:
-    remote_data = json.load(f)
-
-# 保留本机 env
-local_env = local_data.get('env')
-result = dict(remote_data)
-if local_env is not None:
-    result['env'] = local_env
-
-with open(local, 'w') as f:
-    json.dump(result, f, indent=2, ensure_ascii=False)
-PYEOF
-  elif _has_node; then
-    local node_remote node_local
-    node_remote=$(_node_path_arg "$remote_file")
-    node_local=$(_node_path_arg "$local_file")
-    "${NODE_CMD[@]}" - "$node_remote" "$node_local" << 'JSEOF'
-const fs = require('fs');
-const readText = (path) => fs.readFileSync(path, 'utf8').replace(/^\uFEFF/, '');
-
-const [, , remote, local] = process.argv;
-const localData = JSON.parse(readText(local));
-const remoteData = JSON.parse(readText(remote));
-const result = { ...remoteData };
-
-if (localData.env !== undefined && localData.env !== null) {
-  result.env = localData.env;
-}
-
-fs.writeFileSync(local, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
-JSEOF
-  else
-    echo "⚠️  无 jq、可用的 Python 或 node，settings.json 直接覆盖（本机 env 可能丢失）"
-    cp "$remote_file" "$local_file"
-  fi
-}
-
-# ── config.toml 智能合并：用远端内容 + 保留本机 [projects.*] 和 env ────────────
-_merge_config_toml() {
-  local remote_file="$1" local_file="$2"
-  [ -f "$remote_file" ] || return 0
-
-  # 如果本地不存在，直接复制
-  if [ ! -f "$local_file" ]; then
-    cp "$remote_file" "$local_file"
-    return 0
-  fi
-
-  if _detect_python; then
-    env REMOTE_FILE="$remote_file" LOCAL_FILE="$local_file" "${PYTHON_CMD[@]}" << 'PYEOF'
-import os
-import re
-
-remote = os.environ['REMOTE_FILE']
-local = os.environ['LOCAL_FILE']
-
-# 从本地文件提取 [projects.*] 段和 env 行
-with open(local) as f:
-    local_lines = f.readlines()
-
-local_projects = []  # 保存本机 [projects.*] 段
-local_envs = {}      # 保存本机 env 行（按所在段分组）
-current_section = ""
-in_projects = False
-
-for line in local_lines:
-    if re.match(r'^\s*\[projects\.', line):
-        in_projects = True
-        local_projects.append(line)
-        continue
-    if re.match(r'^\s*\[', line):
-        if in_projects:
-            in_projects = False
-        current_section = line.strip()
-    if in_projects:
-        local_projects.append(line)
-        continue
-    if re.match(r'^\s*env\s*=\s*\{', line):
-        local_envs[current_section] = line
-
-# 读取远端文件，还原 env 行到对应段
-with open(remote) as f:
-    remote_lines = f.readlines()
-
-result = []
-current_section = ""
-for line in remote_lines:
-    if re.match(r'^\s*\[', line):
-        current_section = line.strip()
-    # 如果远端的 env 被注释掉了，尝试用本机的 env 还原（允许前导空白/缩进）
-    if re.match(r'^\s*#\s*env\s*=\s*\{.*已过滤', line):
-        if current_section in local_envs:
-            result.append(local_envs[current_section])
-            continue
-    result.append(line)
-
-# 末尾追加本机的 [projects.*] 段
-if local_projects:
-    result.append('\n')
-    result.extend(local_projects)
-
-content = ''.join(result).rstrip('\n') + '\n'
-with open(local, 'w') as f:
-    f.write(content)
-PYEOF
-  elif _has_node; then
-    local node_remote node_local
-    node_remote=$(_node_path_arg "$remote_file")
-    node_local=$(_node_path_arg "$local_file")
-    "${NODE_CMD[@]}" - "$node_remote" "$node_local" << 'JSEOF'
-const fs = require('fs');
-const readText = (path) => fs.readFileSync(path, 'utf8').replace(/^\uFEFF/, '');
-
-const [, , remote, local] = process.argv;
-const localLines = readText(local).replace(/\r\n/g, '\n').split('\n');
-if (localLines.length > 0 && localLines[localLines.length - 1] === '') {
-  localLines.pop();
-}
-
-const localProjects = [];
-const localEnvs = {};
-let currentSection = '';
-let inProjects = false;
-
-for (const rawLine of localLines) {
-  const line = `${rawLine}\n`;
-  if (/^\s*\[projects\./.test(line)) {
-    inProjects = true;
-    localProjects.push(line);
-    continue;
-  }
-  if (/^\s*\[/.test(line)) {
-    if (inProjects) {
-      inProjects = false;
-    }
-    currentSection = line.trim();
-  }
-  if (inProjects) {
-    localProjects.push(line);
-    continue;
-  }
-  if (/^\s*env\s*=\s*\{/.test(line)) {
-    localEnvs[currentSection] = line;
-  }
-}
-
-const remoteLines = readText(remote).replace(/\r\n/g, '\n').split('\n');
-if (remoteLines.length > 0 && remoteLines[remoteLines.length - 1] === '') {
-  remoteLines.pop();
-}
-
-const result = [];
-currentSection = '';
-for (const rawLine of remoteLines) {
-  const line = `${rawLine}\n`;
-  if (/^\s*\[/.test(line)) {
-    currentSection = line.trim();
-  }
-  if (/^\s*#\s*env\s*=\s*\{.*已过滤/.test(line) && Object.prototype.hasOwnProperty.call(localEnvs, currentSection)) {
-    result.push(localEnvs[currentSection]);
-    continue;
-  }
-  result.push(line);
-}
-
-if (localProjects.length > 0) {
-  result.push('\n');
-  result.push(...localProjects);
-}
-
-const content = `${result.join('').replace(/\n*$/, '')}\n`;
-fs.writeFileSync(local, content, 'utf8');
-JSEOF
-  else
-    echo "⚠️  无可用的 Python 或 node，config.toml 直接覆盖（本机 [projects] 和 env 可能丢失）"
-    cp "$remote_file" "$local_file"
   fi
 }
 
@@ -571,8 +362,7 @@ if [ -d "$REPO/claude" ]; then
 
   [ -f "$REPO/claude/CLAUDE.md" ] && cp "$REPO/claude/CLAUDE.md" "$CLAUDE_DIR/"
 
-  # settings.json：智能合并，保留本机 env
-  _merge_settings_json "$REPO/claude/settings.json" "$CLAUDE_DIR/settings.json"
+  # settings.json 不再同步，始终保留本机版本。
 
   [ -f "$REPO/claude/plugins/blocklist.json" ] && cp "$REPO/claude/plugins/blocklist.json" "$CLAUDE_DIR/plugins/"
   [ -f "$REPO/claude/plugins/known_marketplaces.json" ] && cp "$REPO/claude/plugins/known_marketplaces.json" "$CLAUDE_DIR/plugins/"
@@ -587,8 +377,7 @@ if [ -d "$REPO/codex" ]; then
 
   [ -f "$REPO/codex/AGENTS.md" ] && cp "$REPO/codex/AGENTS.md" "$CODEX_DIR/"
 
-  # config.toml：智能合并，保留本机 [projects.*] 和 env
-  _merge_config_toml "$REPO/codex/config.toml" "$CODEX_DIR/config.toml"
+  # config.toml 不再同步，始终保留本机版本。
 
   _restore_dir "$REPO/codex/skills"   "$CODEX_DIR/skills"
   _restore_dir "$REPO/codex/rules"    "$CODEX_DIR/rules"
@@ -599,6 +388,6 @@ echo "✅ 配置还原完成"
 echo "📝 注意事项："
 echo "   - Copilot config.json 已保留本机登录态、Token 与 trusted_folders（如有）"
 echo "   - Copilot mcp-config.json 已保留同名 MCP server 的本机 env（如有）"
-echo "   - settings.json 的 env 字段已保留本机值（如有）"
-echo "   - config.toml 的 [projects] 和 env 已保留本机值（如有）"
+echo "   - Claude settings.json 不参与同步，已保留本机版本"
+echo "   - Codex config.toml 不参与同步，已保留本机版本"
 echo "   - auth.json 不同步，各机器需独立登录"

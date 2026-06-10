@@ -16,8 +16,8 @@
 
 - 写好了 `CLAUDE.md` / `AGENTS.md` 里的详细指令
 - 安装了十几个自定义 Skill
-- 配置好了 MCP 服务器（Context7、DeepWiki、Sequential Thinking...）
-- 在 `config.toml` 里调好了各种模型参数
+- 配置好了可共享的 Copilot MCP 服务器
+- 整理好了规则、记忆和插件屏蔽列表
 
 然后... 你换了一台电脑，一切从零开始。😩
 
@@ -143,14 +143,14 @@ AI：✅ 初始化完成，智能判断远端状态后自动同步
 
 | 你说 | 效果 |
 |---|---|
-| `同步配置` | 安全同步（先推送本地改动；失败即停） |
+| `同步配置` | 安全同步（先拉取合并远端，再推送本地改动） |
 | `推送配置` | 将本地改动推到云端 |
 | `拉取配置` | 从云端同步到本地 |
 | `同步状态` | 查看哪些文件有本地修改 |
 | `开启自动同步` | 设置 shell 启动时自动同步 |
 
 说明：
-为避免本机尚未推送的 Skill / Rule / Memory 在拉取阶段被镜像删除，`同步配置` 默认优先推送本地改动；如果推送失败，会直接停止并提示你先处理远端领先、认证或权限问题。
+`同步配置` 会先拉取并合并远端同步仓库，再采集本机共享配置、提交并推送；如果合并冲突、认证失败或推送失败，会直接停止并提示你处理对应问题。
 
 ### 换了新机器？
 
@@ -182,7 +182,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-syn
 | 文件 | 是否同步 | 说明 |
 |---|---|---|
 | `~/.claude/CLAUDE.md` | ✅ | AI 主指令 |
-| `~/.claude/settings.json` | ✅ 过滤 | 去掉 `env`（API Token），其余保留 |
+| `~/.claude/settings.json` | ❌ | 本机偏好、权限和环境相关配置，各机器独立维护 |
 | `~/.claude/skills/` | ✅ | 全部自定义 Skill（镜像同步，含删除） |
 | `~/.claude/plugins/blocklist.json` | ✅ | 屏蔽插件列表 |
 | `~/.claude/plugins/known_marketplaces.json` | ✅ | 添加的 Marketplace 源 |
@@ -194,7 +194,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/yibing1996/ai-cli-config-syn
 | 文件 | 是否同步 | 说明 |
 |---|---|---|
 | `~/.codex/AGENTS.md` | ✅ | Agent 指令 |
-| `~/.codex/config.toml` | ✅ 过滤 | 过滤 `[projects.*]`（本机路径）和 `env`（Token），其余保留 |
+| `~/.codex/config.toml` | ❌ | MCP 命令路径、模型偏好、信任目录和环境相关配置，各机器独立维护 |
 | `~/.codex/skills/` | ✅ | 全部自定义 Skill（镜像同步，含删除） |
 | `~/.codex/rules/` | ✅ | 规则文件 |
 | `~/.codex/memories/` | ✅ | AI 记忆 |
@@ -224,10 +224,10 @@ auto_push: false   # 设为 true：shell 退出时自动 push
 - **强烈建议使用私有仓库**（配置含个人指令和工具习惯）
 - `~/.copilot/config.json` 只同步明确安全的共享字段（当前为 `banner`、`model`）；`copilot_tokens`、登录态、`trusted_folders`、`firstLaunchAt` 会保留在本机
 - `~/.copilot/mcp-config.json` 会自动过滤各 MCP server 的 `env` 字段；Pull 时会尽量恢复本机已有的 `env`
-- `settings.json` 的 `env` 字段（含 API Token）**自动过滤**，不会同步
-- `config.toml` 的 `[projects.*]` 段（本机路径）和 `env` 字段（可能含 Token）**自动过滤**
+- `~/.claude/settings.json` **不同步**，各机器独立维护
+- `~/.codex/config.toml` **不同步**，各机器独立维护
 - `auth.json`（登录 Token）**永远不同步**，每台机器需独立登录
-- 新机器 Pull 后请检查 `config.toml` 与 `~/.copilot/mcp-config.json` 中 MCP server 的命令路径是否适配本机
+- 新机器 Pull 后请检查 `~/.copilot/mcp-config.json` 中 MCP server 的命令路径是否适配本机
 - 其余敏感字段如有需要，可在同步仓库的 `.gitignore` 中手动添加
 
 ---
@@ -237,7 +237,7 @@ auto_push: false   # 设为 true：shell 退出时自动 push
 - 当前主要在 **GitHub + WSL / Git Bash / Linux / macOS / Windows PowerShell** 环境下验证；Gitee 与其他环境建议先自行回归测试
 - 自动同步使用保守的快进策略；如果本地同步仓库存在分叉、未提交变更或未推送提交，自动拉取会停止而不是强行合并
 - `auth.json`、`vendor_imports/`、数据库、会话、缓存等本机运行数据不会同步
-- 恢复后请手动检查 `config.toml` 与 `~/.copilot/mcp-config.json` 中和本机路径强相关的 MCP 命令、解释器路径、工作目录等配置
+- 恢复后请手动检查 `~/.copilot/mcp-config.json` 中和本机路径强相关的 MCP 命令、解释器路径、工作目录等配置
 - Windows 原生终端现已支持通过 `install.ps1`、`push.ps1`、`pull.ps1` 等包装脚本运行；如需直接运行 `*.sh`，仍建议使用 Git Bash，并确保仓库中的 `*.sh` 文件保持 `LF` 行尾
 
 ---
@@ -246,7 +246,7 @@ auto_push: false   # 设为 true：shell 退出时自动 push
 
 - `bash`（必须；Windows 建议安装 Git for Windows，自带 Git Bash）
 - `git`（必须）
-- `jq`、可用的 Python（`python3` / `python` / Windows 的 `py -3`）或 `node`（推荐，用于过滤 settings.json / config.toml 敏感字段，以及 Pull 时智能合并；若 Windows 上的 `python3` 只是应用商店占位符，脚本会自动回退到 `node`）
+- `jq`、可用的 Python（`python3` / `python` / Windows 的 `py -3`）或 `node`（推荐，用于过滤 Copilot 私有字段，以及 Pull 时智能合并；若 Windows 上的 `python3` 只是应用商店占位符，脚本会自动回退到 `node`）
 - `rsync`（可选，用于高效目录同步；无则自动降级为 cp）
 - Git 全局身份配置（`git config --global user.name` 和 `user.email`）
 
@@ -306,7 +306,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-windows-sm
 - 在“已配置好的机器”上执行安装、初始化和首次推送，确认远端仓库里已产生预期文件
 - 在“全新环境”中验证恢复流程，例如新机器、容器，或使用一个临时 `HOME` 目录
 - 在第二台机器恢复成功后，修改 `AGENTS.md`、`CLAUDE.md` 或某个 Skill，再执行一次推送和拉取，确认双向同步正常
-- 检查 `settings.json` 的 `env`、`config.toml` 的 `env` 与 `[projects.*]`、以及 `~/.copilot/config.json` 的登录态 / Token / `trusted_folders` 是否按预期保留在本机、未被同步到远端
+- 检查 `~/.claude/settings.json`、`~/.codex/config.toml`、以及 `~/.copilot/config.json` 的登录态 / Token / `trusted_folders` 是否按预期保留在本机、未被同步到远端
 - 在 Windows 环境里至少验证一次“启动 PowerShell 自动 pull”和“退出 PowerShell 自动 push”，并确认 `~/.cli-sync/auto-sync.log` 可正常读到日志
 - 在 Unix / WSL 环境里至少验证一次“新开 shell 自动 pull”和“退出 shell 自动 push”，确认 hook 已写入当前登录 shell 对应的 `~/.bashrc` 或 `~/.zshrc`
 - 手动触发一次自动同步场景，并查看 `~/.cli-sync/auto-sync.log`，确认没有出现认证失败、分叉或快进失败

@@ -16,7 +16,7 @@ description: 将 AI CLI 工具（Claude Code CLI、GitHub Copilot CLI、Codex CL
 | 初始化配置同步 / setup config sync | Setup 初始化 |
 | 推送配置 / push configs / 同步到云端 | 推送到远程 |
 | 拉取配置 / pull configs / 从云端同步 | 从远程拉取 |
-| 同步配置 / sync my configs / sync CLI configs | 安全同步（先推送，失败即停） |
+| 同步配置 / sync my configs / sync CLI configs | 安全同步（先拉取合并，再推送） |
 | 开启自动同步 / enable auto sync | 配置 shell hook |
 | 同步状态 / sync status | 查看差异 |
 
@@ -39,12 +39,12 @@ description: 将 AI CLI 工具（Claude Code CLI、GitHub Copilot CLI、Codex CL
 
 **同步：**
 - `CLAUDE.md` — AI 主指令文件
-- `settings.json` — 自动过滤 `env` 字段（含 API Token），其余保留
 - `skills/` — 全部自定义 Skill（镜像同步，含删除）
 - `plugins/blocklist.json` — 屏蔽插件列表
 - `plugins/known_marketplaces.json` — 已添加的 Marketplace 源
 
 **不同步：**
+- `settings.json` — 本机偏好、权限和环境相关配置，各机器独立维护
 - `plugins/marketplaces/` — marketplace 缓存（可重新下载）
 - `history.jsonl`、`sessions/`、`cache/`、`debug/`、`downloads/`、`telemetry/`
 
@@ -52,12 +52,12 @@ description: 将 AI CLI 工具（Claude Code CLI、GitHub Copilot CLI、Codex CL
 
 **同步：**
 - `AGENTS.md` — Agent 指令文件
-- `config.toml` — 自动过滤 `[projects.*]` 段（本机路径）和 `env` 字段（可能含 Token），其余保留
 - `skills/` — 全部自定义 Skill（镜像同步，含删除）
 - `rules/` — 规则文件
 - `memories/` — AI 记忆文件
 
 **不同步：**
+- `config.toml` — MCP 命令路径、模型偏好、信任目录和环境相关配置，各机器独立维护
 - `auth.json` — 登录 Token（各机器独立登录）
 - `vendor_imports/` — 系统自带 Skill 库（可重新安装）
 - `*.sqlite*`、`logs_*`、`state_*`、`cache/`、`sessions/`、`archived_sessions/`、`tmp/`、`.tmp/`
@@ -158,7 +158,7 @@ bash "$HOME/.cli-sync/pull.sh"
 
 **触发**：「同步配置」「sync my configs」「sync CLI configs」
 
-**策略：先推送本地改动；如果推送失败则停止，不自动执行拉取，避免本地尚未推送的 Skill / Rule / Memory 被远端镜像删除。**
+**策略：先拉取并合并远端同步仓库，再采集本机共享配置、提交并推送；如果合并冲突或推送失败则停止。**
 
 **Windows 原生终端（PowerShell / cmd）**：
 
@@ -230,8 +230,8 @@ bash "$HOME/.cli-sync/status.sh"
 | `~/.cli-sync-repo` 不是有效 Git 仓库 | 备份后删除该目录，重新执行初始化 |
 | `git push` 认证失败 | 检查 SSH Key 或 Personal Access Token |
 | 自动 pull 失败 | 查看 `~/.cli-sync/auto-sync.log`，确认是否存在分叉、未提交变更或认证失败 |
-| 推送失败 | 检查远端地址、认证、网络和仓库权限；若远端已领先，先执行拉取并处理差异 |
-| merge 冲突 | `cd ~/.cli-sync-repo && git pull --rebase` 后手动解决 |
+| 推送失败 | 检查远端地址、认证、网络和仓库权限；若合并冲突，请先在同步仓库中处理差异 |
+| merge 冲突 | `cd ~/.cli-sync-repo` 后手动解决冲突，完成提交后重新同步 |
 | Windows 原生终端里出现 `/bin/bash: ... ~/.cli-sync/*.sh: No such file or directory` | 说明误走了 WSL 的 `bash.exe`；请改用 `~/.cli-sync/*.ps1`，不要在 PowerShell / cmd 里直接调用裸 `bash` |
 | `jq` / 可用的 Python / `node` 都不可用 | 推荐安装 `jq` 和真正可执行的 `python3`（或 `python` / Windows 的 `py -3`）；如果系统已有 `node`，脚本会自动回退到 `node` 处理 Copilot / Codex 的过滤与合并 |
 
@@ -242,7 +242,7 @@ bash "$HOME/.cli-sync/status.sh"
 1. **强烈建议使用私有仓库**，配置文件含个人工作习惯和 MCP 配置
 2. `~/.copilot/config.json` 仅同步明确安全的共享字段；`copilot_tokens`、登录态、`trusted_folders`、`firstLaunchAt` 保留在本机
 3. `~/.copilot/mcp-config.json` 会自动过滤各 MCP server 的 `env`；新机器 Pull 后请检查命令路径是否适配本机
-4. `settings.json` 的 `env` 字段（含 API Token）**自动过滤**，还原后需手动重设
-5. `config.toml` 的 `[projects.*]` 段（本机路径）和 `env` 字段（可能含 Token）**自动过滤**
+4. `~/.claude/settings.json` **不同步**，各机器独立维护
+5. `~/.codex/config.toml` **不同步**，各机器独立维护
 6. `auth.json` **永远不同步**，每台机器需独立登录
-7. 新机器 Pull 后请检查 `config.toml` 中 MCP server 的命令路径（如 `/home/user/.nvm/...`）是否适配本机
+7. 新机器 Pull 后请检查 `~/.copilot/mcp-config.json` 中 MCP server 的命令路径是否适配本机
