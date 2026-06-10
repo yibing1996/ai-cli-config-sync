@@ -100,6 +100,8 @@ auth.json
 *.sqlite-wal
 
 # 运行时数据
+__pycache__/
+*.pyc
 cache/
 sessions/
 archived_sessions/

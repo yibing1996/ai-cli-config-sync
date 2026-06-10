@@ -182,9 +182,12 @@ _sync_dir() {
   [ -d "$src" ] || return 0
   mkdir -p "$dst"
   if command -v rsync &> /dev/null; then
-    rsync -a "$src/" "$dst/"
+    rsync -a --exclude='__pycache__/' --exclude='*.pyc' "$src/" "$dst/"
   else
     cp -R "$src/." "$dst/"
+    find "$dst" -path '*/__pycache__/*' -type f -delete 2>/dev/null || true
+    find "$dst" -type f -name '*.pyc' -delete 2>/dev/null || true
+    find "$dst" -type d -name __pycache__ -empty -delete 2>/dev/null || true
   fi
 }
 
